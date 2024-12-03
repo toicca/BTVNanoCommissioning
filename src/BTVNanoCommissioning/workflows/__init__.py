@@ -43,6 +43,12 @@ from BTVNanoCommissioning.workflows.BTA_ttbar_producer import (
     NanoProcessor as BTA_ttbar_processor,
 )  # ttbar -kinFit
 
+## QG
+from BTVNanoCommissioning.workflows.qgtag_DY_producer import (
+    NanoProcessor as QGDYProcessor,
+)
+
+
 # from BTVNanoCommissioning.workflows.example import (
 #     NanoProcessor as ExampleProcessor,
 # )
@@ -94,5 +100,8 @@ workflows["BTA"] = BTA_processor
 workflows["BTA_addPFMuons"] = partial(BTA_processor, addPFMuons=True)
 workflows["BTA_addAllTracks"] = partial(BTA_processor, addAllTracks=True)
 workflows["BTA_ttbar"] = BTA_ttbar_processor
+
+# QG
+workflows["qgtag_DY"] = QGDYProcessor
 
 __all__ = ["workflows"]
