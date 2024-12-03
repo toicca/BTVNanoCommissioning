@@ -20,7 +20,7 @@ correction_config = {
     },
     "UL16preVFP": {
         "lumiMask": "Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt",
-        "PU": None,
+        # "PU": None,
         # "JME": "jec_compiled.pkl.gz",
         "JME": {
             "name": "V7_AK4PFchs",
@@ -45,13 +45,13 @@ correction_config = {
                 "Summer19UL16APV_RunEF_V7_DATA_L2L3Residual_AK4PFchs",
             ],
         },
-        "BTV": None,
-        "LSF": None,
-        "Prescales": None,
+        # "BTV": None,
+        # "LSF": None,
+        # "Prescales": None,
     },
     "UL16postVFP": {
         "lumiMask": "Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt",
-        "PU": None,
+        # "PU": None,
         "JME": {
             "name": "V7_AK4PFchs",
             "MC": [
@@ -69,9 +69,9 @@ correction_config = {
                 "Summer19UL16_RunFGH_V7_DATA_L2L3Residual_AK4PFchs",
             ],
         },
-        "BTV": None,
-        "LSF": None,
-        "Prescales": None,
+        # "BTV": None,
+        # "LSF": None,
+        # "Prescales": None,
     },
     "2017_UL": {
         "lumiMask": "Cert_294927-306462_13TeV_UL2017_Collisions17_MuonJSON.txt",
@@ -91,7 +91,7 @@ correction_config = {
     },
     "UL17": {
         "lumiMask": "Cert_294927-306462_13TeV_UL2017_Collisions17_GoldenJSON.txt",
-        "PU": None,
+        # "PU": None,
         "JME": {
             "name": "V5_AK4PFchs",
             "MC": [
@@ -133,14 +133,13 @@ correction_config = {
                 "Summer19UL17_RunF_V5_DATA_L2L3Residual_AK4PFchs",
             ],
         },
-        "BTV": None,
-        "LSF": None,
-        "Prescales": None,
+        # "BTV": None,
+        # "LSF": None,
+        # "Prescales": None,
     },
     "UL18": {
         "lumiMask": "Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt",
-        "PU": None,
-        "JME": "jec_compiled.pkl.gz",
+        # "PU": None,
         "JME": {
             "name": "V5_AK4PFchs",
             "MC": [
@@ -176,9 +175,9 @@ correction_config = {
                 "Summer19UL18_RunD_V5_DATA_L2L3Residual_AK4PFchs",
             ],
         },
-        "BTV": None,
-        "LSF": None,
-        "Prescales": None,
+        # "BTV": None,
+        # "LSF": None,
+        # "Prescales": None,
     },
     "Winter22Run3": {
         "lumiMask": "Cert_Collisions2022_355100_357900_Golden.json",
