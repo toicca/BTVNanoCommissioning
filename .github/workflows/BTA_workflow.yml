@@ -56,10 +56,9 @@ jobs:
         cvmfs_repositories: 'grid.cern.ch'
 
     - name: Set conda environment
-      uses: conda-incubator/setup-miniconda@v2
+      uses: conda-incubator/setup-miniconda@v3
       with:
         python-version: ${{ matrix.python-version }}
-        miniforge-variant: Mambaforge
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: btv_coffea
