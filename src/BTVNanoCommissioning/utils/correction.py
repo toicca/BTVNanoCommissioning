@@ -524,12 +524,12 @@ def JME_shifts(
 
         else:
             if isRealData:
-                if "2016preVFP_UL" == campaign:
+                if "2016preVFP_UL" == campaign or "UL16preVFP" == campaign:
                     if "2016B" in dataset or "2016C" in dataset or "2016D" in dataset:
                         jecname = "BCD"
                     elif "2016E" in dataset or "2016F" in dataset:
                         jecname = "EF"
-                elif "2016postVFP_UL" == campaign:
+                elif "2016postVFP_UL" == campaign or "UL16postVFP" == campaign:
                     jecname = "FGH"
                 elif campaign == "Rereco17_94X":
                     jecname = ""
