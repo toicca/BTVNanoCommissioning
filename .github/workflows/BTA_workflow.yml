@@ -58,7 +58,7 @@ jobs:
       uses: conda-incubator/setup-miniconda@v3
       with:
         python-version: ${{ matrix.python-version }}
-        miniforge-variant: Mambaforge
+        # miniforge-variant: Mambaforge
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: btv_coffea
