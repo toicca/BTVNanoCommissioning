@@ -11,7 +11,7 @@ from BTVNanoCommissioning.helpers.func import flatten
 def histogrammer(events, workflow):
     _hist_dict = {}
     ## Common variables
-    flav_axis = Hist.axis.IntCategory([0, 1, 4, 5, 6], name="flav", label="Genflavour")
+    flav_axis = Hist.axis.IntCategory([0, 1, 2, 3, 4, 5, 6, 21], name="flav", label="Genflavour")
     syst_axis = Hist.axis.StrCategory([], name="syst", growth=True)
     pt_axis = Hist.axis.Regular(60, 0, 300, name="pt", label=" $p_{T}$ [GeV]")
     jpt_axis = Hist.axis.Regular(300, 0, 3000, name="pt", label=" $p_{T}$ [GeV]")
@@ -402,6 +402,8 @@ def histogrammer(events, workflow):
             _hist_dict[f"dr_{i}jet"] = Hist.Hist(
                 syst_axis, flav_axis, dr_axis, Hist.storage.Weight()
             )
+    elif "qgtag" in workflow:
+        obj_list = ["jet0"]
 
     ### Common kinematic variables histogram creation
     if "Wc_sf" not in workflow:
