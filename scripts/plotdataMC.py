@@ -71,6 +71,9 @@ parser.add_argument(
 parser.add_argument(
     "--xrange", type=str, default=None, help="custom x-range, --xrange xmin,xmax"
 )
+parser.add_argument(
+    "--yrange", type=str, default=None, help="custom y-range, --yrange ymin,ymax"
+)
 parser.add_argument("--ext", type=str, default="", help="prefix name")
 parser.add_argument(
     "--autorebin",
@@ -594,6 +597,10 @@ for index, discr in enumerate(var_set):
     if args.xrange is not None:
         xmin, xmax = float(args.xrange.split(",")[0]), float(args.xrange.split(",")[1])
     rax.set_xlim(xmin, xmax)
+    ax.set_xlim(xmin, xmax)
+    if args.yrange is not None:
+        ymin, ymax = float(args.yrange.split(",")[0]), float(args.yrange.split(",")[1])
+    ax.set_ylim(ymin, ymax)
     at = AnchoredText(input_txt + "\n" + args.ext, loc=2, frameon=False)
     ax.add_artist(at)
     scale = ""
@@ -602,7 +609,7 @@ for index, discr in enumerate(var_set):
     name = "all"
     if args.split == "sample":
         name = name + "_sample"
-    hep.mpl_magic(ax=ax, soft_fail=True)
+    # hep.mpl_magic(ax=ax, soft_fail=True)
     if args.log:
         print(
             "creating:",
@@ -611,7 +618,7 @@ for index, discr in enumerate(var_set):
         ax.set_yscale("log")
         name = "log"
         ax.set_ylim(bottom=0.1)
-        hep.mpl_magic(ax=ax, soft_fail=True)
+        # hep.mpl_magic(ax=ax, soft_fail=True)
         fig.savefig(
             f"plot/{args.phase}_{args.ext}/unc_{discr}_inclusive{scale}_{name}.pdf"
         )
