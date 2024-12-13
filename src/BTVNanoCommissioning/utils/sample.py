@@ -285,4 +285,12 @@ predefined_sample = {
             "TTto2L2Nu_TuneCP5Up_13p6TeV_powheg-pythia8",
         ],
     },
+    "qgtag_DY": {
+        "data": ["Muon0", "Muon1"],
+        "MC": ["DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8"],
+    },
+    "qgtag_dijet": {
+        "data": ["JetMET0", "JetMET1"],
+        "MC": [] # TODO: add QCD HT binned samples
+    },
 }
