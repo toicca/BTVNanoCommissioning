@@ -407,24 +407,22 @@ def histogrammer(events, workflow):
         # Objects:
         # DY: ZCand (Tag), jet0 (Probe)
         # QCD: jet1 (Tag), jet0 (Probe)
-        obj_list = ["jet0"]
+        obj_list = ["Tag", "jet0"]
 
-        if "DY" in workflow:
-            obj_list.append("ZCand")
-            _hist_dict["ZCand_mass"] = Hist.Hist(
-                syst_axis,
-                Hist.axis.Regular(
-                    50, 50, 100, name="mass", label="$m_{\\ell\\ell}$ [GeV]"
-                ),
-                Hist.storage.Weight(),
-            )
-        elif "dijet" in workflow:
-            obj_list.append("jet1")
-            _hist_dict["Tag_eta"] = Hist.Hist(
-                syst_axis,
-                Hist.axis.Regular(25, -5, 5, name="eta", label="$\eta$"),
-                Hist.storage.Weight(),
-            )
+        # if "DY" in workflow:
+            # _hist_dict["ZCand_mass"] = Hist.Hist(
+                # syst_axis,
+                # Hist.axis.Regular(
+                    # 50, 50, 100, name="mass", label="$m_{\\ell\\ell}$ [GeV]"
+                # ),
+                # Hist.storage.Weight(),
+            # )
+        # elif "dijet" in workflow:
+            # _hist_dict["Tag_eta"] = Hist.Hist(
+                # syst_axis,
+                # Hist.axis.Regular(25, -5, 5, name="eta", label="$\eta$"),
+                # Hist.storage.Weight(),
+            # )
 
     ### Common kinematic variables histogram creation
     if "Wc_sf" not in workflow:
@@ -462,7 +460,7 @@ def histogrammer(events, workflow):
                     _hist_dict[f"{obj}_eta"] = Hist.Hist(
                         syst_axis, eta_axis, Hist.storage.Weight()
                     )
-                    if obj == "ZCand":
+                    if obj == "Tag":
                         _hist_dict[f"{obj}_mass"] = Hist.Hist(
                             syst_axis, mass_axis, Hist.storage.Weight()
                         )
@@ -680,7 +678,14 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
         "DeepJetC",
     ]  # exclude b-tag SFs for btag inputs
     # define Jet flavor
-    nj = 1 if type(pruned_ev.SelJet.pt[0]) == float else ak.count(pruned_ev.SelJet.pt)
+    if "SelJet" in pruned_ev.fields:
+        nj = 1 if type(pruned_ev.SelJet.pt[0]) == float else ak.count(pruned_ev.SelJet.pt)
+    elif "Probe" in pruned_ev.fields:
+        nj = 1
+    elif "Jet" in pruned_ev.fields:
+        nj = ak.count(pruned_ev.Jet.pt)
+    else:
+        nj = 0
     if "hadronFlavour" in pruned_ev.SelJet.fields:
         isRealData = False
         genflavor = ak.values_astype(
@@ -895,10 +900,10 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                             discr=seljet[histname.replace(f"_{i}", "")],
                             weight=weight,
                         )
-            elif "ZCand" in histname:
+            elif "Tag" in histname:
                 h.fill(
                     syst,
-                    flatten(pruned_ev["ZCand"][histname.replace("ZCand_", "")]),
+                    flatten(pruned_ev["Tag"][histname.replace("Tag_", "")]),
                     weight=weight,
                 )
 

@@ -78,7 +78,7 @@ class NanoProcessor(processor.ProcessorABC):
         _hist_event_dict = (
             {"": None}
             if self.noHist
-            else histogrammer(events, "qgtag_DY")  # this is the place to modify
+            else histogrammer(events, "qgtag_dijet")  # this is the place to modify
         )
 
         output = {
@@ -103,46 +103,15 @@ class NanoProcessor(processor.ProcessorABC):
             output = dump_lumi(events[req_lumi], output)
         ##====> start here, make your customize modification
         ## HLT
-        if self._year == "2016":
-            triggers = [
-                "Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ"
-            ]
-        elif self._year in ["2017", "2018"]:
-            triggers = [
-                "Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass8",
-            ]
-        else:
-            triggers = [
-                "Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8"
-            ]
+        triggers = [
+            "ZeroBias",
+        ]
         req_trig = HLT_helper(events, triggers)
 
         # events = events[req_trig & req_lumi]
         event_level = req_trig & req_lumi
 
         ##### Add some selections
-        ## Muon cuts
-        # muon twiki: https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideMuonIdRun2
-
-        muon_sel = (events.Muon.pt > 15) & (mu_idiso(events, self._campaign)) # muon pt > 20 GeV in Run2?
-        event_mu = ak.mask(events.Muon, muon_sel)
-        event_mu = ak.pad_none(event_mu, 2)
-        events.Muon = ak.pad_none(events.Muon, 2) # Make sure that the shape is consistent
-
-        req_muon = ak.count(event_mu.pt, axis=1) == 2
-        event_level = event_level & req_muon
-
-        req_muChrg = ak.where(req_muon, event_mu[:, 0].charge != event_mu[:, 1].charge, ak.zeros_like(req_muon))
-
-        event_level = event_level & req_muChrg
-
-        # Electron cut
-        ele_sel = (events.Electron.pt > 15) & (ele_cuttightid(events, self._campaign))
-        event_e = events.Electron[ele_sel]
-        req_ele = ak.num(event_e.pt) == 0
-
-        event_level = event_level & req_ele
-
         ## Jet cuts
         jet_sel = (events.Jet.pt > 30) & (jet_id(events, self._campaign))
 
@@ -153,19 +122,19 @@ class NanoProcessor(processor.ProcessorABC):
         else:
             jet_puid = True
 
-        # Jet isolation from muons
-        # & deltaPhi to Z
-        req_jetmu = ak.all(events.Jet.metric_table(event_mu) > 0.4, axis=2, mask_identity=True)
-        jet_dphi = (event_mu[:, 0] + event_mu[:, 1]).delta_phi(events.Jet) > 2.7
-
-        jet_sel = jet_sel & jet_puid & req_jetmu & jet_dphi
+        jet_sel = jet_sel & jet_puid
         event_jet = ak.mask(events.Jet, jet_sel)
-        event_jet = ak.pad_none(event_jet, 2)
-        events.Jet = ak.pad_none(events.Jet, 2) # Make sure that the shape is consistent
+        event_jet = ak.pad_none(event_jet, 3)
+        events.Jet = ak.pad_none(events.Jet, 3) # Make sure that the shape is consistent
         
-        req_jet = ak.count(event_jet.pt, axis=1) > 0
+        req_jet = ak.count(event_jet.pt, axis=1) > 1
+        req_dphi = event_jet[:, 0].delta_phi(event_jet[:, 1]) > 2.7
+        req_subjet = ak.where(ak.count(event_jet.pt, axis=1) > 2, event_jet[:, 2].pt / (0.5*(event_jet[:,0] + event_jet[:,1])).pt < 1.0, ak.ones_like(req_jet))
+        req_tagjet = ak.where(req_jet,
+                            ak.fill_none(np.abs(event_jet.eta[:,0]) < 1.3, False) | ak.fill_none(np.abs(event_jet.eta[:,1]) < 1.3, False),
+                            ak.zeros_like(req_jet))
 
-        event_level = event_level & req_jet
+        event_level = event_level & req_jet & req_dphi & req_subjet & req_tagjet
 
         ## MC only: require gen vertex to be close to reco vertex
         if "GenVtx_z" in events.fields:
@@ -174,15 +143,6 @@ class NanoProcessor(processor.ProcessorABC):
             req_vtx = ak.ones_like(events.run, dtype=bool)
 
         event_level = event_level & req_vtx
-        
-        ## Z candidate
-        req_zmass = ak.where(req_muon, (event_mu[:, 0] + event_mu[:, 1]).mass > 71.2, ak.zeros_like(req_muon))
-        req_zpt = ak.where(req_muon, (event_mu[:, 0] + event_mu[:, 1]).pt > 12, ak.zeros_like(req_muon))
-
-        req_subjet = ak.where(ak.count(event_jet.pt, axis=1) > 1 & req_muon, event_jet[:, 1].pt / (event_mu[:, 0] + event_mu[:, 1]).pt < 1.0, ak.ones_like(req_muon))
-
-        req_z = req_zmass & req_zpt 
-        event_level = event_level & req_z & req_subjet
 
         ##<==== finish selection
         event_level = ak.fill_none(event_level, False)
@@ -207,14 +167,24 @@ class NanoProcessor(processor.ProcessorABC):
         # Keep the structure of events and pruned the object size
         pruned_ev = events[event_level]
 
-        pruned_ev["SelJet"] = pruned_ev.Jet[:, 0]
-        pruned_ev["PosMuon"] = pruned_ev.Muon[pruned_ev.Muon.charge > 0][:, 0]
-        pruned_ev["NegMuon"] = pruned_ev.Muon[pruned_ev.Muon.charge < 0][:, 0]
-        pruned_ev["Tag"] = pruned_ev.Muon[:, 0] + pruned_ev.Muon[:, 1]
-        pruned_ev["Tag", "pt"] = pruned_ev["Tag"].pt
-        pruned_ev["Tag", "eta"] = pruned_ev["Tag"].eta
-        pruned_ev["Tag", "phi"] = pruned_ev["Tag"].phi
-        pruned_ev["Tag", "mass"] = pruned_ev["Tag"].mass
+        pruned_ev["Tag"] = (
+            ak.where(
+                ak.fill_none(np.abs(pruned_ev.Jet.eta)[:,0] < 1.3, False) & ak.fill_none(np.abs(pruned_ev.Jet.eta)[:,1] < 1.3, False),
+                pruned_ev.Jet[:, np.random.randint(0, 2)], # Is this correct? Is a single value returned for the whole program or for each event?
+                ak.where(
+                    np.abs(pruned_ev.Jet.eta)[:,0] < 1.3,
+                    pruned_ev.Jet[:, 0],
+                    pruned_ev.Jet[:, 1]
+                )
+            )
+        )
+        pruned_ev["SelJet"] = (
+            ak.where(
+                pruned_ev.Jet[:, 0].pt == pruned_ev.Tag.pt,
+                pruned_ev.Jet[:, 1],
+                pruned_ev.Jet[:, 0]
+            )
+        )
         pruned_ev["njet"] = ak.count(pruned_ev.Jet.pt, axis=1)
 
         ## <========= end: store custom objects

@@ -47,6 +47,9 @@ from BTVNanoCommissioning.workflows.BTA_ttbar_producer import (
 from BTVNanoCommissioning.workflows.qgtag_DY_producer import (
     NanoProcessor as QGDYProcessor,
 )
+from BTVNanoCommissioning.workflows.qgtag_dijet_producer import (
+    NanoProcessor as QGDijetProcessor,
+)
 
 
 # from BTVNanoCommissioning.workflows.example import (
@@ -103,5 +106,6 @@ workflows["BTA_ttbar"] = BTA_ttbar_processor
 
 # QG
 workflows["qgtag_DY"] = QGDYProcessor
+workflows["qgtag_dijet"] = QGDijetProcessor
 
 __all__ = ["workflows"]
