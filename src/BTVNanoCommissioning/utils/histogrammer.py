@@ -35,6 +35,7 @@ def histogrammer(events, workflow):
     ptratio_axis = Hist.axis.Regular(50, 0, 1, name="ratio", label="ratio")
     n_axis = Hist.axis.Integer(0, 10, name="n", label="N obj")
     osss_axis = Hist.axis.IntCategory([1, -1], name="osss", label="OS(+)/SS(-)")
+
     ### Workflow specific
     if "example" == workflow:
         obj_list = [
@@ -403,7 +404,27 @@ def histogrammer(events, workflow):
                 syst_axis, flav_axis, dr_axis, Hist.storage.Weight()
             )
     elif "qgtag" in workflow:
+        # Objects:
+        # DY: ZCand (Tag), jet0 (Probe)
+        # QCD: jet1 (Tag), jet0 (Probe)
         obj_list = ["jet0"]
+
+        if "DY" in workflow:
+            obj_list.append("ZCand")
+            _hist_dict["ZCand_mass"] = Hist.Hist(
+                syst_axis,
+                Hist.axis.Regular(
+                    50, 50, 100, name="mass", label="$m_{\\ell\\ell}$ [GeV]"
+                ),
+                Hist.storage.Weight(),
+            )
+        elif "dijet" in workflow:
+            obj_list.append("jet1")
+            _hist_dict["Tag_eta"] = Hist.Hist(
+                syst_axis,
+                Hist.axis.Regular(25, -5, 5, name="eta", label="$\eta$"),
+                Hist.storage.Weight(),
+            )
 
     ### Common kinematic variables histogram creation
     if "Wc_sf" not in workflow:
@@ -441,6 +462,10 @@ def histogrammer(events, workflow):
                     _hist_dict[f"{obj}_eta"] = Hist.Hist(
                         syst_axis, eta_axis, Hist.storage.Weight()
                     )
+                    if obj == "ZCand":
+                        _hist_dict[f"{obj}_mass"] = Hist.Hist(
+                            syst_axis, mass_axis, Hist.storage.Weight()
+                        )
     else:
         _hist_dict["njet"] = Hist.Hist(
             syst_axis, osss_axis, n_axis, Hist.storage.Weight()
@@ -570,6 +595,9 @@ def histogrammer(events, workflow):
                     Hist.axis.Regular(40, 0, 2, name="discr", label=disc),
                     Hist.storage.Weight(),
                 )
+        elif "qgtag" in workflow:
+            njet = 1
+        
         for i in range(njet):
             if "Wc_sf" in workflow:
                 if "btag" in disc or "ProbaN" == disc:
@@ -634,6 +662,13 @@ def histogrammer(events, workflow):
                         Hist.axis.Regular(40, 0, 2, name="discr", label=disc),
                         Hist.storage.Weight(),
                     )
+                elif "QG" in disc or "UDS" in disc:
+                    _hist_dict[f"{disc}_{i}"] = Hist.Hist(
+                        syst_axis,
+                        flav_axis,
+                        Hist.axis.Regular(50, 0, 1, name="discr", label=disc),
+                        Hist.storage.Weight(),
+                    )
     return _hist_dict
 
 
@@ -645,7 +680,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
         "DeepJetC",
     ]  # exclude b-tag SFs for btag inputs
     # define Jet flavor
-    nj = 1 if type(pruned_ev.SelJet.pt[0]) == float else len(pruned_ev.SelJet.pt[0])
+    nj = 1 if type(pruned_ev.SelJet.pt[0]) == float else ak.count(pruned_ev.SelJet.pt)
     if "hadronFlavour" in pruned_ev.SelJet.fields:
         isRealData = False
         genflavor = ak.values_astype(
@@ -860,6 +895,13 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                             discr=seljet[histname.replace(f"_{i}", "")],
                             weight=weight,
                         )
+            elif "ZCand" in histname:
+                h.fill(
+                    syst,
+                    flatten(pruned_ev["ZCand"][histname.replace("ZCand_", "")]),
+                    weight=weight,
+                )
+
 
         if "hl" in pruned_ev.fields:
             output["hl_ptratio"].fill(
