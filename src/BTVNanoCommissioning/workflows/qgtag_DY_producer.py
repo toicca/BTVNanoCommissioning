@@ -78,7 +78,7 @@ class NanoProcessor(processor.ProcessorABC):
         _hist_event_dict = (
             {"": None}
             if self.noHist
-            else histogrammer(events, "example")  # this is the place to modify
+            else histogrammer(events, "qgtag_DY")  # this is the place to modify
         )
 
         output = {
@@ -117,79 +117,72 @@ class NanoProcessor(processor.ProcessorABC):
             ]
         req_trig = HLT_helper(events, triggers)
 
-        events = events[req_trig & req_lumi]
+        # events = events[req_trig & req_lumi]
+        event_level = req_trig & req_lumi
 
         ##### Add some selections
         ## Muon cuts
         # muon twiki: https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideMuonIdRun2
 
-        muon_sel = (events.Muon.pt > 15) & (mu_idiso(events, self._campaign)) # muon pt > 20 GeV in Run2
-        event_mu = events.Muon[muon_sel]
-        req_muon = ak.num(event_mu.pt) == 2
-        events = events[req_muon]
+        muon_sel = (events.Muon.pt > 15) & (mu_idiso(events, self._campaign)) # muon pt > 20 GeV in Run2?
+        event_mu = ak.mask(events.Muon, muon_sel)
+        event_mu = ak.pad_none(event_mu, 2)
+        events.Muon = ak.pad_none(events.Muon, 2) # Make sure that the shape is consistent
 
-        req_muChrg = events.Muon[:, 0].charge != events.Muon[:, 1].charge
-        events = events[req_muChrg]
+        req_muon = ak.count(event_mu.pt, axis=1) == 2
+        event_level = event_level & req_muon
+
+        req_muChrg = ak.where(req_muon, event_mu[:, 0].charge != event_mu[:, 1].charge, ak.zeros_like(req_muon))
+
+        event_level = event_level & req_muChrg
 
         # Electron cut
         ele_sel = (events.Electron.pt > 15) & (ele_cuttightid(events, self._campaign))
         event_e = events.Electron[ele_sel]
         req_ele = ak.num(event_e.pt) == 0
 
-        events = events[req_ele]
+        event_level = event_level & req_ele
 
         ## Jet cuts
         jet_sel = (events.Jet.pt > 30) & (jet_id(events, self._campaign))
-        # event_jet = events.Jet[jet_sel]
+
         if self._year == "2016":
             jet_puid = events.Jet.puId >= 1
         elif self._year in ["2017", "2018"]:
             jet_puid = events.Jet.puId >= 4
         else:
-            jet_puid = np.ones_like(events.Jet.pt, dtype="bool")
+            jet_puid = True
 
         # Jet isolation from muons
-        cross_jmu = ak.cartesian([events.Jet, events.Muon], nested=True)
-        req_jetmu = ak.all(events.Jet.metric_table(events.Muon) > 0.4, axis=2, mask_identity=True)
-        # ak.all((cross_jmu.slot0.delta_r(cross_jmu.slot1) > 0.4), axis=-1)
+        # & deltaPhi to Z
+        req_jetmu = ak.all(events.Jet.metric_table(event_mu) > 0.4, axis=2, mask_identity=True)
+        jet_dphi = (event_mu[:, 0] + event_mu[:, 1]).delta_phi(events.Jet) > 2.7
 
-        jet_sel = jet_sel & jet_puid & req_jetmu
-        events.Jet = events.Jet[jet_sel]
+        jet_sel = jet_sel & jet_puid & req_jetmu & jet_dphi
+        event_jet = ak.mask(events.Jet, jet_sel)
+        event_jet = ak.pad_none(event_jet, 2)
+        events.Jet = ak.pad_none(events.Jet, 2) # Make sure that the shape is consistent
+        
+        req_jet = ak.count(event_jet.pt, axis=1) > 0
 
-        # event_jet = event_jet[req_jetmu]
-        req_jet = ak.num(events.Jet.pt) >= 1
-        events = events[req_jet]
+        event_level = event_level & req_jet
 
         ## MC only: require gen vertex to be close to reco vertex
         if "GenVtx_z" in events.fields:
             req_vtx = np.abs(events.GenVtx_z - events.PV_z) < 0.2
         else:
-            req_vtx = np.ones_like(len(events), dtype="bool")
+            req_vtx = ak.ones_like(events.run, dtype=bool)
 
-        req_vtx = ak.ones_like(events.Jet)
-
-        events = events[req_vtx]
-        
-        ## TODO: MC only: JER smearing (or is this done somewhere else?)
+        event_level = event_level & req_vtx
         
         ## Z candidate
-        z_cand = events.Muon[:, 0] + events.Muon[:, 1]
-        req_zmass = (z_cand.mass > 71.2) & (z_cand.mass < 111.2)
-        cross_jz = ak.cartesian([events.Jet, z_cand])
-        req_dphi = np.abs(cross_jz.slot0.delta_phi(cross_jz.slot1)) > 2.7
-        req_zpt = z_cand.pt > 12
-        subjet_pt = ak.where(ak.num(events.Jet.pt) > 1, events.Jet.pt[:, 1], 0)
-        req_subjet = subjet_pt / z_cand.pt < 1.0
+        req_zmass = ak.where(req_muon, (event_mu[:, 0] + event_mu[:, 1]).mass > 71.2, ak.zeros_like(req_muon))
+        req_zpt = ak.where(req_muon, (event_mu[:, 0] + event_mu[:, 1]).pt > 12, ak.zeros_like(req_muon))
 
-        req_z = req_zmass & req_dphi & req_zpt & req_subjet
+        req_subjet = ak.where(ak.count(event_jet.pt, axis=1) > 1 & req_muon, event_jet[:, 1].pt / (event_mu[:, 0] + event_mu[:, 1]).pt < 1.0, ak.ones_like(req_muon))
 
-        events = events[req_z]
-
-        ## Apply all selections
-        # event_level = (
-            # req_trig & req_lumi & req_jet & req_muon & req_ele # & req_leadlep_pt
-            # & req_vtx & req_z
-        # )
+        req_z = req_zmass & req_zpt 
+        event_level = event_level & req_z & req_subjet
 
         ##<==== finish selection
         event_level = ak.fill_none(event_level, False)
@@ -206,21 +199,26 @@ class NanoProcessor(processor.ProcessorABC):
                     empty=True,
                 )
             return {dataset: output}
+
         ##===>  Ntuplization  : store custom information
         ####################
         # Selected objects # : Pruned objects with reduced event_level
         ####################
         # Keep the structure of events and pruned the object size
-        pruned_ev = events# [event_level]
-        event_jet = pruned_ev.Jet
-        event_mu = pruned_ev.Muon
-        pruned_ev["SelJet"] = event_jet[:,0]# [event_level][:, 0]
-        pruned_ev["SelMuon"] = event_mu[:,0] # [event_level][:, 0]
-        # pruned_ev["SelElectron"] = event_e[:,0] # [event_level][:, 0]
-        pruned_ev["mujet_ptratio"] = pruned_ev.Muon.pt / pruned_ev.SelJet.pt
-        pruned_ev["mujet_dr"] = pruned_ev.Muon.delta_r(pruned_ev.SelJet)
+        pruned_ev = events[event_level]
+
+        pruned_ev["SelJet"] = pruned_ev.Jet[:, 0]
+        pruned_ev["PosMuon"] = pruned_ev.Muon[pruned_ev.Muon.charge > 0][:, 0]
+        pruned_ev["NegMuon"] = pruned_ev.Muon[pruned_ev.Muon.charge < 0][:, 0]
+        pruned_ev["ZCand"] = pruned_ev.Muon[:, 0] + pruned_ev.Muon[:, 1]
+        pruned_ev["ZCand", "pt"] = pruned_ev["ZCand"].pt
+        pruned_ev["ZCand", "eta"] = pruned_ev["ZCand"].eta
+        pruned_ev["ZCand", "phi"] = pruned_ev["ZCand"].phi
+        pruned_ev["ZCand", "mass"] = pruned_ev["ZCand"].mass
+        pruned_ev["njet"] = ak.count(pruned_ev.Jet.pt, axis=1)
 
         ## <========= end: store custom objects
+
         ####################
         #     Output       #
         ####################
@@ -237,6 +235,7 @@ class NanoProcessor(processor.ProcessorABC):
                 pruned_ev[f"{ind_wei}_weight"] = weights.partial_weight(
                     include=[ind_wei]
                 )
+
         # Configure histograms
         if not self.noHist:
             output = histo_writter(
