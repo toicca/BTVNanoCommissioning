@@ -20,6 +20,8 @@ from BTVNanoCommissioning.utils.selection import (
     mu_idiso,
     ele_mvatightid,
     softmu_mask,
+    btag_wp,
+    btag_wp_dict,
 )
 
 
@@ -66,11 +68,15 @@ class NanoProcessor(processor.ProcessorABC):
 
         isMu = False
         isEle = False
+        ### selections from Spandan
         if "WcM" in self.selMod or "semittM" in self.selMod:
             triggers = ["IsoMu27", "IsoMu24"]
             isMu = True
             dxySigcut = 1.0
             muNeEmSum = 0.7
+            ### remove muNeEmSum for cutbased
+            if "cutbased_WcM" == self.selMod:
+                muNeEmSum = 1.0
             muonpTratioCut = 0.4
             isolepdz, isolepdxy, isolepsip3d = 0.01, 0.002, 2
         elif "WcE" in self.selMod or "semittE" in self.selMod:
@@ -86,11 +92,17 @@ class NanoProcessor(processor.ProcessorABC):
         histoname = {
             "WcM": "ctag_Wc_sf",
             "WcE": "ectag_Wc_sf",
+            "cutbased_WcM": "ctag_cutbased_Wc_sf",
+            "cutbased_WcE": "ectag_cutbased_Wc_sf",
             "semittM": "ctag_Wc_sf",  # same histogram representation as W+c
             "semittE": "ectag_Wc_sf",  # same histogram representation as W+c
         }
         _hist_event_dict = (
-            {"": None} if self.noHist else histogrammer(events, histoname[self.selMod])
+            {"": None}
+            if self.noHist
+            else histogrammer(
+                events, histoname[self.selMod], self._year, self._campaign
+            )
         )
 
         output = {
@@ -337,9 +349,22 @@ class NanoProcessor(processor.ProcessorABC):
 
         osss = 1
         ossswrite = shmu.charge * ssmu.charge * -1
-        if "Wc" in self.selMod:
+        smuon_jet_passc = {}
+        c_algos = []
+        c_wps = []
+        if "cutbased_Wc" in self.selMod:
             osss = shmu.charge * ssmu.charge * -1
-
+            c_algos = btag_wp_dict[self._year + "_" + self._campaign].keys()
+            for c_algo in c_algos:
+                smuon_jet_passc[c_algo] = {}
+                c_wps = btag_wp_dict[self._year + "_" + self._campaign][c_algo][
+                    "c"
+                ].keys()
+                for c_wp in c_wps:
+                    if not "No" in c_wp:
+                        smuon_jet_passc[c_algo][c_wp] = btag_wp(
+                            smuon_jet, self._year, self._campaign, c_algo, "c", c_wp
+                        )
         njet = ak.count(sjets.pt, axis=1)
         # Find the PFCands associate with selected jets. Search from jetindex->JetPFCands->PFCand
         if "PFCands" in events.fields:
@@ -489,7 +514,10 @@ class NanoProcessor(processor.ProcessorABC):
                         flatten(ssmu[histname.replace("soft_l_", "")]),
                         weight=weight,
                     )
-                elif "mujet_" in histname:
+                elif (
+                    "mujet_" in histname
+                    and histname.replace("mujet_", "") in smuon_jet.fields
+                ):
                     h.fill(
                         syst,
                         smflav,
@@ -586,7 +614,17 @@ class NanoProcessor(processor.ProcessorABC):
             output["w_mass"].fill(syst, osss, flatten(sw.mass), weight=weight)
             output["MET_pt"].fill(syst, osss, flatten(smet.pt), weight=weight)
             output["MET_phi"].fill(syst, osss, flatten(smet.phi), weight=weight)
-
+            if "cutbased_Wc" in self.selMod:
+                for c_algo in c_algos:
+                    for c_wp in c_wps:
+                        if not "No" in c_wp:
+                            output[f"mujet_pt_{c_algo}{c_wp}"].fill(
+                                syst,
+                                smflav[smuon_jet_passc[c_algo][c_wp]],
+                                osss[smuon_jet_passc[c_algo][c_wp]],
+                                flatten(smuon_jet[smuon_jet_passc[c_algo][c_wp]].pt),
+                                weight=weight[smuon_jet_passc[c_algo][c_wp]],
+                            )
         #######################
         #  Create root files  #
         #######################

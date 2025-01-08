@@ -1,0 +1,6 @@
+{
+    "QCD_PT-50to80_TuneCP5_13p6TeV_pythia8": [
+        "root://grid-cms-xrootd.physik.rwth-aachen.de:1094//store/user/usarkar/PFNano_Run3/mc_summer23/QCD_PT-50to80_TuneCP5_13p6TeV_pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2_BTV_Run3_2023_Comm_MINIAODv4/231228_130325/0000/MC_defaultAK4_2023_39.root",
+        "root://grid-cms-xrootd.physik.rwth-aachen.de:1094//store/user/usarkar/PFNano_Run3/mc_summer23/QCD_PT-50to80_TuneCP5_13p6TeV_pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2_BTV_Run3_2023_Comm_MINIAODv4/231228_130325/0000/MC_defaultAK4_2023_32.root"
+    ]
+}
