@@ -37,7 +37,9 @@ jobs:
         shell: "bash -l {0}"
 
     steps:
+
     - uses: actions/checkout@v4
+
 
     - name: Merge PR locally
       if: github.event_name == 'pull_request_target'
