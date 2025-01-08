@@ -178,6 +178,10 @@ class NanoProcessor(processor.ProcessorABC):
                 )
             )
         )
+        pruned_ev["Tag", "pt"] = pruned_ev["Tag"].pt
+        pruned_ev["Tag", "eta"] = pruned_ev["Tag"].eta
+        pruned_ev["Tag", "phi"] = pruned_ev["Tag"].phi
+        pruned_ev["Tag", "mass"] = pruned_ev["Tag"].mass
         pruned_ev["SelJet"] = (
             ak.where(
                 pruned_ev.Jet[:, 0].pt == pruned_ev.Tag.pt,
