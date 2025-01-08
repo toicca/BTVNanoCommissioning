@@ -259,11 +259,241 @@ class NanoProcessor(processor.ProcessorABC):
             systematics = ["nominal"] + list(weights.variations)
         else:
             systematics = [shift_name]
-        if not isRealData:
-            pruned_ev["weight"] = weights.weight()
-            for ind_wei in weights.weightStatistics.keys():
-                pruned_ev[f"{ind_wei}_weight"] = weights.partial_weight(
-                    include=[ind_wei]
+
+        exclude_btv = [
+            "DeepCSVC",
+            "DeepCSVB",
+            "DeepJetB",
+            "DeepJetC",
+        ]  # exclude b-tag SFs for btag inputs
+
+        ####################
+        #  Fill histogram  #
+        ####################
+        for syst in systematics:
+            if self.isSyst == False and syst != "nominal":
+                break
+            if self.noHist:
+                break
+
+            weight = (
+                weights.weight()
+                if syst == "nominal" or syst == shift_name
+                else weights.weight(modifier=syst)
+            )
+            if not self.ttaddsel == "c_tt_semilep":
+                for histname, h in output.items():
+                    if (
+                        "Deep" in histname
+                        and "btag" not in histname
+                        and histname in events.Jet.fields
+                    ):
+                        h.fill(
+                            syst,
+                            flatten(genflavor),
+                            flatten(sjets[histname]),
+                            weight=flatten(
+                                ak.broadcast_arrays(
+                                    weights.partial_weight(exclude=exclude_btv),
+                                    sjets["pt"],
+                                )[0]
+                            ),
+                        )
+                    elif (
+                        "PFCands" in histname
+                        and "PFCands" in events.fields
+                        and histname.split("_")[1] in events.PFCands.fields
+                    ):
+                        for i in range(4):
+                            h.fill(
+                                syst,
+                                flatten(
+                                    ak.broadcast_arrays(
+                                        genflavor[:, i],
+                                        spfcands[i]["pt"],
+                                    )[0]
+                                ),
+                                flatten(spfcands[i][histname.replace("PFCands_", "")]),
+                                weight=flatten(
+                                    ak.broadcast_arrays(
+                                        weights.partial_weight(exclude=exclude_btv),
+                                        spfcands[i]["pt"],
+                                    )[0]
+                                ),
+                            )
+                    elif "btag" in histname:
+                        for i in range(4):
+                            sel_jet = sjets[:, i]
+                            if (
+                                str(i) in histname
+                                and histname.replace(f"_{i}", "") in events.Jet.fields
+                            ):
+                                h.fill(
+                                    syst="noSF",
+                                    flav=genflavor[:, i],
+                                    discr=sel_jet[histname.replace(f"_{i}", "")],
+                                    weight=weight,
+                                )
+                                if (
+                                    not isRealData
+                                    and "btag" in self.SF_map.keys()
+                                    and "_b" not in histname
+                                    and "_bb" not in histname
+                                    and "_lepb" not in histname
+                                ):
+                                    h.fill(
+                                        syst=syst,
+                                        flav=genflavor[:, i],
+                                        discr=sel_jet[histname.replace(f"_{i}", "")],
+                                        weight=weight,
+                                    )
+                    elif (
+                        "mu_" in histname and histname.replace("mu_", "") in smu.fields
+                    ):
+                        h.fill(
+                            syst,
+                            flatten(smu[histname.replace("mu_", "")]),
+                            weight=weight,
+                        )
+                    elif (
+                        "jet" in histname
+                        and "dr" not in histname
+                        and "njet" != histname
+                    ):
+                        for i in range(4):
+                            sel_jet = sjets[:, i]
+                            if str(i) in histname:
+                                h.fill(
+                                    syst,
+                                    flatten(genflavor[:, i]),
+                                    flatten(sel_jet[histname.replace(f"jet{i}_", "")]),
+                                    weight=weight,
+                                )
+
+                for i in range(4):
+                    output[f"dr_mujet{i}"].fill(
+                        syst,
+                        flav=flatten(genflavor[:, i]),
+                        dr=flatten(smu.delta_r(sjets[:, i])),
+                        weight=weight,
+                    )
+                output["njet"].fill(syst, nseljet, weight=weight)
+                output["MET_pt"].fill(syst, flatten(smet.pt), weight=weight)
+                output["MET_phi"].fill(syst, flatten(smet.phi), weight=weight)
+                output["npvs"].fill(
+                    syst,
+                    events[event_level].PV.npvs,
+                    weight=weight,
+                )
+                output["w_mass"].fill(
+                    syst,
+                    flatten(sw.mass),
+                    weight=weight,
+                )
+            else:
+                for histname, h in output.items():
+                    if (
+                        "Deep" in histname
+                        and "btag" not in histname
+                        and histname in events.Jet.fields
+                    ):
+                        h.fill(
+                            syst,
+                            flatten(genflavor_c),
+                            flatten(scjets[histname]),
+                            weight=flatten(
+                                ak.broadcast_arrays(
+                                    weights.partial_weight(exclude=exclude_btv),
+                                    scjets["pt"],
+                                )[0]
+                            ),
+                        )
+                    elif (
+                        "PFCands" in histname
+                        and "PFCands" in events.fields
+                        and histname.split("_")[1] in events.PFCands.fields
+                    ):
+                        h.fill(
+                            syst,
+                            flatten(
+                                ak.broadcast_arrays(
+                                    genflavor_c,
+                                    spfcands[0]["pt"],
+                                )[0]
+                            ),
+                            flatten(spfcands[0][histname.replace("PFCands_", "")]),
+                            weight=flatten(
+                                ak.broadcast_arrays(
+                                    weights.partial_weight(exclude=exclude_btv),
+                                    spfcands[0]["pt"],
+                                )[0]
+                            ),
+                        )
+                    elif "btag" in histname:
+                        sel_jet = scjets
+                        if histname.replace(f"c_", "") in events.Jet.fields:
+                            h.fill(
+                                syst="noSF",
+                                flav=genflavor_c,
+                                discr=sel_jet[histname.replace(f"c_", "")],
+                                weight=weight,
+                            )
+                            if (
+                                not isRealData
+                                and "btag" in self.SF_map.keys()
+                                and "_b" not in histname
+                                and "_bb" not in histname
+                                and "_lepb" not in histname
+                            ):
+                                h.fill(
+                                    syst=syst,
+                                    flav=genflavor_c,
+                                    discr=sel_jet[histname.replace(f"c_", "")],
+                                    weight=weight,
+                                )
+                    elif (
+                        "mu_" in histname and histname.replace("mu_", "") in smu.fields
+                    ):
+                        mu_array = flatten(smu[histname.replace("mu_", "")])
+                        h.fill(
+                            syst,
+                            flatten(smu[histname.replace("mu_", "")]),
+                            weight=weight,
+                        )
+                    elif (
+                        "jet" in histname
+                        and "dr" not in histname
+                        and "njet" != histname
+                    ):
+                        if "c" in histname:
+                            jet_array = flatten(scjets[histname.replace(f"cjet_", "")])
+
+                            h.fill(
+                                syst,
+                                flatten(genflavor_c),
+                                flatten(scjets[histname.replace(f"cjet_", "")]),
+                                weight=weight,
+                            )
+
+                output[f"dr_cjet"].fill(
+                    syst,
+                    flav=flatten(genflavor_c),
+                    dr=flatten(smu.delta_r(scjets)),
+                    weight=weight,
+                )
+                output["njet"].fill(syst, ncseljet, weight=weight)
+                output["MET_pt"].fill(syst, flatten(smet.pt), weight=weight)
+                output["MET_phi"].fill(syst, flatten(smet.phi), weight=weight)
+                output["npvs"].fill(
+                    syst,
+                    events[event_level].PV.npvs,
+                    weight=weight,
+                )
+                output["w_mass"].fill(
+                    syst,
+                    flatten(sw.mass),
+                    weight=weight,
+
                 )
         # Configure histograms
         if not self.noHist:
