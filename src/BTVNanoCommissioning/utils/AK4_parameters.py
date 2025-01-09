@@ -206,7 +206,7 @@ correction_config = {
             "Run2022D": "calibeHistoWrite_Data2022D_NANO130X_v1.root",
             "MC": "calibeHistoWrite_MC2022_NANO130X_v2.root",
         },
-        "jetveto": {"Run2022CD jetvetomap": "Winter22Run3_RunCD_v1.histo.root"},
+        # "jetveto": {"Run2022CD jetvetomap": "Winter22Run3_RunCD_v1.histo.root"},
     },
     "Summer22EE": {
         "lumiMask": "Cert_Collisions2022_355100_362760_Golden.json",

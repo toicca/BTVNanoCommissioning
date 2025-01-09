@@ -44,7 +44,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
             "mu",
         ]  # store basic 4-vector, pt,eta, phi, mass for the object
         _hist_dict[f"dr_mujet0"] = Hist.Hist(
-        _hist_dict[f"dr_mujet0"] = Hist.Hist(
             syst_axis, flav_axis, dr_axis, Hist.storage.Weight()
         )  # create cutstomize histogram
     elif "QCD" == workflow:
@@ -96,7 +95,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
             _hist_dict[f"{i}_ptratio"] = Hist.Hist(
                 syst_axis, flav_axis, ptratio_axis, Hist.storage.Weight()
             )
-        _hist_dict["dr_lmusmujetsmu"] = Hist.Hist(
         _hist_dict["dr_lmusmujetsmu"] = Hist.Hist(
             syst_axis, flav_axis, dr_s_axis, Hist.storage.Weight()
         )
@@ -237,8 +235,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
     elif "ctag_ttdilep_sf" in workflow:
         obj_list = ["hl", "sl", "soft_l", "MET", "dilep", "lmujet"]
         _hist_dict["dilep_mass"] = Hist.Hist(
-        obj_list = ["hl", "sl", "soft_l", "MET", "dilep", "lmujet"]
-        _hist_dict["dilep_mass"] = Hist.Hist(
             syst_axis,
             Hist.axis.Regular(
                 50, 50, 100, name="mass", label=" $m_{\\ell\\ell}$ [GeV]"
@@ -276,10 +272,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
                     _hist_dict[f"{i}_pfRelIso03_all"] = Hist.Hist(
                         syst_axis, iso_axis, Hist.storage.Weight()
                     )
-                else:
-                    _hist_dict[f"{i}_pfRelIso03_all"] = Hist.Hist(
-                        syst_axis, iso_axis, Hist.storage.Weight()
-                    )
                 _hist_dict[f"{i}_dxy"] = Hist.Hist(
                     syst_axis, qcddxy_axis, Hist.storage.Weight()
                 )
@@ -291,8 +283,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
                 syst_axis, flav_axis, ptratio_axis, Hist.storage.Weight()
             )
     elif "ctag_ttsemilep_sf" in workflow:
-        obj_list = ["hl", "soft_l", "MET", "dilep", "mujet"]
-        _hist_dict["dilep_mass"] = Hist.Hist(
         obj_list = ["hl", "soft_l", "MET", "dilep", "mujet"]
         _hist_dict["dilep_mass"] = Hist.Hist(
             syst_axis,
@@ -345,7 +335,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
             Hist.storage.Weight(),
         )
         _hist_dict["dilep_mass"] = Hist.Hist(
-        _hist_dict["dilep_mass"] = Hist.Hist(
             syst_axis,
             osss_axis,
             Hist.axis.Regular(50, 50, 100, name="mass", label="$m_{\\ell\\ell}$ [GeV]"),
@@ -393,7 +382,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
         )
         # delta R between hard muon and soft-muon
         _hist_dict["dr_hmusmu"] = Hist.Hist(
-        _hist_dict["dr_hmusmu"] = Hist.Hist(
             syst_axis, osss_axis, dr_axis, Hist.storage.Weight()
         )
         for i in ["hl", "soft_l"]:
@@ -425,8 +413,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
                 syst_axis, flav_axis, osss_axis, ptratio_axis, Hist.storage.Weight()
             )
     elif "DY_sf" in workflow:
-        obj_list = ["posl", "negl", "dilep", "jet0"]
-        _hist_dict["dilep_mass"] = Hist.Hist(
         obj_list = ["posl", "negl", "dilep", "jet0"]
         _hist_dict["dilep_mass"] = Hist.Hist(
             syst_axis,
@@ -486,7 +472,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
                     )
                 else:
                     _hist_dict[f"{obj}_pt"] = Hist.Hist(
-                        syst_axis, flav_axis, pt_axis, Hist.storage.Weight()
                         syst_axis, flav_axis, pt_axis, Hist.storage.Weight()
                     )
                 _hist_dict[f"{obj}_eta"] = Hist.Hist(
@@ -549,7 +534,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
                     )
                 else:
                     _hist_dict[f"{obj}_pt"] = Hist.Hist(
-                        syst_axis, flav_axis, osss_axis, pt_axis, Hist.storage.Weight()
                         syst_axis, flav_axis, osss_axis, pt_axis, Hist.storage.Weight()
                     )
                 _hist_dict[f"{obj}_eta"] = Hist.Hist(
@@ -642,7 +626,6 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
     #     )
     ### discriminators
     for disc in disc_list:
-        if disc not in events.Jet.fields:
         if disc not in events.Jet.fields:
             continue
         njet = 1
