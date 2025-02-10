@@ -132,6 +132,10 @@ else:
     mergemap["data"] = datalist
 
 collated = collate(output, mergemap)
+collated = {
+    key: value for key, value in collated.items() if isinstance(collated[key], dict)
+}
+print(collated.keys())
 ### input text settings
 if "Wc" in args.phase:
     input_txt = "W+c"
@@ -295,6 +299,7 @@ for index, discr in enumerate(var_set):
             / np.sum(collated["mc"][discr][{"syst": "SF", "flav": sum}].values()),
         )
         print("============")
+
     fig, ((ax), (rax)) = plt.subplots(
         2, 1, figsize=(10, 10), gridspec_kw={"height_ratios": (3, 1)}, sharex=True
     )
@@ -609,7 +614,7 @@ for index, discr in enumerate(var_set):
     name = "all"
     if args.split == "sample":
         name = name + "_sample"
-    hep.mpl_magic(ax=ax, soft_fail=True)
+    hep.mpl_magic(ax=ax)
     if args.log:
         print(
             "creating:",
@@ -618,7 +623,7 @@ for index, discr in enumerate(var_set):
         ax.set_yscale("log")
         name = "log"
         ax.set_ylim(bottom=0.1)
-        hep.mpl_magic(ax=ax, soft_fail=True)
+        hep.mpl_magic(ax=ax)
         fig.savefig(
             f"plot/{args.phase}_{args.ext}/unc_{discr}_inclusive{scale}_{name}.pdf"
         )

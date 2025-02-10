@@ -192,14 +192,10 @@ class NanoProcessor(processor.ProcessorABC):
             "dilepttM": "ctag_ttdilep_sf",
             "dilepttE": "ectag_ttdilep_sf",
         }
-        _hist_event_dict = (
+        output = (
             {"": None} if self.noHist else histogrammer(events, histname[self.selMod])
         )
 
-        output = {
-            "sumw": processor.defaultdict_accumulator(float),
-            **_hist_event_dict,
-        }
         if shift_name is None:
             if isRealData:
                 output["sumw"] = len(events)
@@ -214,7 +210,8 @@ class NanoProcessor(processor.ProcessorABC):
                     self,
                     events[event_level],
                     events,
-                    "nominal",
+                    None,
+                    ["nominal"],
                     dataset,
                     isRealData,
                     empty=True,
@@ -264,12 +261,7 @@ class NanoProcessor(processor.ProcessorABC):
             systematics = ["nominal"] + list(weights.variations)
         else:
             systematics = [shift_name]
-        if not isRealData:
-            pruned_ev["weight"] = weights.weight()
-            for ind_wei in weights.weightStatistics.keys():
-                pruned_ev[f"{ind_wei}_weight"] = weights.partial_weight(
-                    include=[ind_wei]
-                )
+
         # Configure histograms
         if not self.noHist:
             output = histo_writter(
@@ -277,7 +269,9 @@ class NanoProcessor(processor.ProcessorABC):
             )
         # Output arrays
         if self.isArray:
-            array_writer(self, pruned_ev, events, systematics[0], dataset, isRealData)
+            array_writer(
+                self, pruned_ev, events, weights, systematics, dataset, isRealData
+            )
         return {dataset: output}
 
     def postprocess(self, accumulator):

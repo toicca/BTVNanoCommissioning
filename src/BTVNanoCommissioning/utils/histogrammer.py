@@ -10,6 +10,27 @@ from BTVNanoCommissioning.helpers.func import flatten
 
 
 def histogrammer(events, workflow, year="2022", campaign="Summer22"):
+    """
+    Most of workflows require same set of variables. Collect axis, histograms definition in single file
+    To contribute: Add additional axis, histogram using [hist](https://hist.readthedocs.io/en/latest/) for dedicated workflow into the `_hist_dict`. For the new histogram, please have the `syst_axis` as first axis, and `Weight` as last axis.
+
+    Parameters:
+    events (awkward.Array): The events data to be histogrammed.
+    workflow (str): The workflow identifier to determine specific histogramming logic.
+
+    Example:
+
+    ```python
+    # axis example
+    mass_axis = Hist.axis.Regular(50, 0, 300, name="mass", label=" $p_{T}$ [GeV]")
+    # hist example
+    _hist_dict["dr_lmusmu"] = Hist.Hist(syst_axis, dr_axis, Hist.storage.Weight())
+    ```
+
+    Returns:
+    dict: A dictionary containing the defined histograms.
+    """
+
     _hist_dict = {}
     ## Common variables
     flav_axis = Hist.axis.IntCategory([0, 1, 2, 3, 4, 5, 6, 21], name="flav", label="Genflavour")
@@ -37,6 +58,7 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
     n_axis = Hist.axis.Integer(0, 10, name="n", label="N obj")
     osss_axis = Hist.axis.IntCategory([1, -1], name="osss", label="OS(+)/SS(-)")
 
+    ## create histograms for each workflow
     ### Workflow specific
     if "example" == workflow:
         obj_list = [
@@ -60,7 +82,7 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
         # _hist_dict["nJetSVs"] = Hist.Hist(syst_axis, n_axis, Hist.storage.Weight())
 
     elif "QCD_smu" == workflow:
-        obj_list = ["jet0", "hl", "soft_l"]
+        obj_list = ["mujet", "hl", "soft_l"]
         # _hist_dict["dr_SVjet0"] = Hist.Hist(
         #     syst_axis, flav_axis, dr_SV_axis, Hist.storage.Weight()
         # )
@@ -565,6 +587,7 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
             syst_axis, flav_axis, jpt_axis, Hist.storage.Weight()
         )
     ### Btag input variables & PFCands
+
     bininfo = definitions()
     for d in bininfo.keys():
         if d not in events.Jet.fields:
@@ -576,6 +599,8 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
             if bininfo[d]["inputVar_units"] is not None
             else bininfo[d]["displayname"]
         )
+        if "WP" not in workflow:
+            break
         if "Wc_sf" in workflow:
             _hist_dict[d] = Hist.Hist(
                 syst_axis,
@@ -738,7 +763,29 @@ def histogrammer(events, workflow, year="2022", campaign="Summer22"):
     return _hist_dict
 
 
+# Filled common histogram
 def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
+    """
+    Write histograms to the output dictionary based on pruned events and other parameters.
+
+    This function processes the pruned events and writes the histograms to the `output` dictionary. It takes into account the weights, systematics, and scale factors.
+
+    Parameters:
+    pruned_ev (coffea.nanoaodevents): The pruned events data to be histogrammed.
+    output (dict): The output dictionary where histograms will be stored.
+    weights (coffea.analysis_tools.Weights): The weights object for the events.
+    systematics (list): A list of systematic variations to be considered.
+    isSyst (str,bool): Indicating whether systematic variations are to be applied.
+    SF_map (dict): A dictionary containing scale factors for different variables.
+
+    Example:
+    ```python
+    histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map)
+    ```
+
+    Returns:
+    None
+    """
     exclude_btv = [
         "DeepCSVC",
         "DeepCSVB",
@@ -754,17 +801,25 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
         nj = ak.count(pruned_ev.Jet.pt)
     else:
         nj = 0
+
     if "hadronFlavour" in pruned_ev.SelJet.fields:
         isRealData = False
         genflavor = ak.values_astype(
-            pruned_ev.SelJet.hadronFlavour + 1 * (pruned_ev.SelJet.partonFlavour == 0)
-            & (pruned_ev.SelJet.hadronFlavour == 0),
+            pruned_ev.SelJet.hadronFlavour
+            + 1
+            * (
+                (pruned_ev.SelJet.partonFlavour == 0)
+                & (pruned_ev.SelJet.hadronFlavour == 0)
+            ),
             int,
         )
         if "MuonJet" in pruned_ev.fields:
             smflav = ak.values_astype(
-                1 * (pruned_ev.MuonJet.partonFlavour == 0)
-                & (pruned_ev.MuonJet.hadronFlavour == 0)
+                1
+                * (
+                    (pruned_ev.MuonJet.partonFlavour == 0)
+                    & (pruned_ev.MuonJet.hadronFlavour == 0)
+                )
                 + pruned_ev.MuonJet.hadronFlavour,
                 int,
             )
@@ -773,16 +828,19 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
         genflavor = ak.zeros_like(pruned_ev.SelJet.pt, dtype=int)
         if "MuonJet" in pruned_ev.fields:
             smflav = ak.zeros_like(pruned_ev.MuonJet.pt, dtype=int)
-
+    # Loop over the systematic variations
     for syst in systematics:
         if isSyst == False and syst != "nominal":
             break
+        # weight modifications for systematics
         weight = (
             weights.weight()
             if syst == "nominal" or syst not in list(weights.variations)
             else weights.weight(modifier=syst)
         )
+        # Loop over the histograms
         for histname, h in output.items():
+            # tagger score histograms
             if (
                 "Deep" in histname
                 and "btag" not in histname
@@ -800,6 +858,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                         )[0]
                     ),
                 )
+            # PFcands histograms
             elif (
                 "PFCands" in pruned_ev.fields
                 and "PFCands" in histname
@@ -835,7 +894,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                             )[0]
                         ),
                     )
-
+            # leading lepton histograms
             elif (
                 "hl_" in histname
                 and "hl" in pruned_ev.fields
@@ -847,6 +906,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     flatten(pruned_ev.hl[histname.replace("hl_", "")]),
                     weight=weight,
                 )
+            # subleading lepton histograms
             elif (
                 "sl_" in histname
                 and "sl" in pruned_ev.fields
@@ -857,6 +917,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     flatten(pruned_ev.sl[histname.replace("sl_", "")]),
                     weight=weight,
                 )
+            # Selected electron histograms
             elif (
                 "ele_" in histname
                 and histname.replace("ele_", "") in pruned_ev.SelElectron.fields
@@ -868,6 +929,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     flatten(pruned_ev.SelElectron[histname.replace("ele_", "")]),
                     weight=weight,
                 )
+            # Selected muon histograms
             elif (
                 "mu_" in histname
                 and histname.replace("mu_", "") in pruned_ev.SelMuon.fields
@@ -878,6 +940,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     flatten(pruned_ev.SelMuon[histname.replace("mu_", "")]),
                     weight=weight,
                 )
+            # Negatively charged lepton histograms-in DY workflow
             elif (
                 "negl_" in histname
                 and histname.replace("negl_", "") in pruned_ev.negl.fields
@@ -887,6 +950,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     flatten(pruned_ev.negl[histname.replace("negl_", "")]),
                     weight=weight,
                 )
+            # Posively charged lepton histograms-in DY workflow
             elif (
                 "posl_" in histname
                 and histname.replace("posl_", "") in pruned_ev.posl.fields
@@ -896,6 +960,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     flatten(pruned_ev.posl[histname.replace("posl_", "")]),
                     weight=weight,
                 )
+            # Soft muon histograms
             elif "soft_l" in histname and not "ptratio" in histname:
                 h.fill(
                     syst,
@@ -905,7 +970,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                 )
             elif "njet" == histname:
                 output["njet"].fill(syst, pruned_ev.njet, weight=weight)
-
+            # Jet kinmeatics & deltaR between jet and lepton
             elif (
                 "jet" in histname and "posl" not in histname and "negl" not in histname
             ):
@@ -942,6 +1007,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                 )
             # filled discriminants
             elif "btag" in histname or "PNet" in histname:
+                # Events with muon jet
                 if "MuonJet" in pruned_ev.fields:
                     flavs, seljets = smflav, pruned_ev.MuonJet
                     nj = 1
@@ -956,7 +1022,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                     else:
                         flav, seljet = flavs, seljets
                     h.fill(
-                        syst="nominal",
+                        syst=syst,
                         flav=flav,
                         discr=seljet[histname.replace(f"_{i}", "")],
                         weight=weights.partial_weight(exclude=exclude_btv),
@@ -990,17 +1056,25 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                 ratio=pruned_ev.sl.pt / pruned_ev.SelJet[:, 0].pt,
                 weight=weight,
             )
+
         if "dr_poslnegl" in output.keys():
+            # DY histograms
             output["dr_poslnegl"].fill(
                 syst, pruned_ev.posl.delta_r(pruned_ev.negl), weight=weight
             )
             output["dr_posljet"].fill(
-                syst, genflavor, pruned_ev.posl.delta_r(pruned_ev.SelJet), weight=weight
+                syst,
+                genflavor,
+                pruned_ev.posl.delta_r(pruned_ev.SelJet),
+                weight=weight,
             )
             output["dr_negljet"].fill(
-                syst, genflavor, pruned_ev.negl.delta_r(pruned_ev.SelJet), weight=weight
+                syst,
+                genflavor,
+                pruned_ev.negl.delta_r(pruned_ev.SelJet),
+                weight=weight,
             )
-
+        # Muon enriched jet histograms
         if "MuonJet" in pruned_ev.fields:
             if (
                 "hl" not in pruned_ev.fields
@@ -1044,6 +1118,21 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                 dr=pruned_ev.MuonJet.delta_r(pruned_ev.SoftMuon),
                 weight=weight,
             )
+            if "hl" in pruned_ev.fields:
+                output["hl_ptratio"].fill(
+                    syst,
+                    smflav,
+                    ratio=pruned_ev.hl.pt / pruned_ev.MuonJet.pt,
+                    weight=weight,
+                )
+            if "sl" in pruned_ev.fields:
+                output["sl_ptratio"].fill(
+                    syst,
+                    smflav,
+                    ratio=pruned_ev.sl.pt / pruned_ev.MuonJet.pt,
+                    weight=weight,
+                )
+
             if "SelMuon" in pruned_ev.fields and "hl" not in pruned_ev.fields:
                 output["dr_lmujethmu"].fill(
                     syst,
@@ -1054,7 +1143,7 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
                 output["dr_hmusmu"].fill(
                     syst, pruned_ev.SelMuon.delta_r(pruned_ev.SoftMuon), weight=weight
                 )
-
+        # dilepton system histograms: DY workflow
         if "dilep" in pruned_ev.fields:
             output["dilep_pt"].fill(syst, flatten(pruned_ev.dilep.pt), weight=weight)
             output["dilep_pt"].fill(syst, flatten(pruned_ev.dilep.eta), weight=weight)

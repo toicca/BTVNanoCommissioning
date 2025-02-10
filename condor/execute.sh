@@ -34,7 +34,6 @@ fi
 
 export PATH=$WORKDIR:$PATH
 
-
 if [ ! -d /afs/cern.ch/user/${USER:0:1}/$USER ]; then
     ## install necessary packages if on cmsconnect
     micromamba install -c conda-forge jq --yes

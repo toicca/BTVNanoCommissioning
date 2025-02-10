@@ -4,8 +4,6 @@
 disc_list = [
     "btagDeepFlavB",
     "btagDeepFlavC",
-    "btagTransDeepFlavB",
-    "btagTransDeepFlavC",
     "btagDeepFlavCvL",
     "btagDeepFlavCvB",
     "btagDeepFlavB_b",
@@ -17,7 +15,6 @@ disc_list = [
     "btagTransDeepFlavB_bb",
     "btagTransDeepFlavB_lepb",
     "btagPNetB",
-    "btagTransPNetB",
     "btagPNetCvB",
     "btagPNetCvL",
     "btagPNetCvNotB",
@@ -26,10 +23,6 @@ disc_list = [
     "btagPNetProbC",
     "btagPNetProbG",
     "btagPNetProbUDS",
-    "btagTransPNetProbB",
-    "btagTransPNetProbC",
-    "btagTransPNetProbG",
-    "btagTransPNetProbUDS",
     "btagPNetQvG",
     "btagPNetTauVJet",
     "btagRobustParTAK4B",
@@ -39,13 +32,6 @@ disc_list = [
     "btagRobustParTAK4C",
     "btagRobustParTAK4G",
     "btagRobustParTAK4UDS",
-    "btagTransRobustParTAK4B",
-    "btagTransRobustParTAK4B_b",
-    "btagTransRobustParTAK4B_bb",
-    "btagTransRobustParTAK4B_lepb",
-    "btagTransRobustParTAK4C",
-    "btagTransRobustParTAK4G",
-    "btagTransRobustParTAK4UDS",
     "btagRobustParTAK4CvB",
     "btagRobustParTAK4CvL",
     "btagRobustParTAK4QG",
@@ -6131,6 +6117,31 @@ definitions_dict = {
 
 
 def definitions():
+    """
+    Add new definitions to the definitions dictionary.
+
+    Developed by Annika Stein, this function summarizes the information of tagger input variables with corresponding ranges, bins, and display names.
+
+    Parameters:
+    definitions_dict (dict): The dictionary to which new definitions will be added.
+
+    Example:
+    ```python
+    definitions_dict["DeepCSV_jetNSelectedTracks"] = {
+        "displayname": "Jet N Selected Tracks",
+        "manual_ranges": [0.0, 25],
+        "ylabel_text": "Jets",
+        "format_unit": "2f",
+        "format_unit_digits": 2,
+        "bins": 25,
+        "inputVar_units": None,
+    }
+    ```
+
+    Returns:
+    dict: with defitions of the tagger input variables added to the dictionary.
+    """
+    # Function implementation here
     jetINDEX = [0, 1, 28, 41, 48, 49, 56, 57, 58, 59, 63, 64, 65]
     trackINDEX = [
         6,
@@ -6391,6 +6402,8 @@ def axes_name(var):
             unit = unit + " CvL"
         elif "CvB" in var:
             unit = unit + " CvB"
+        elif "CvNotB" in var:
+            unit = unit + " CvNotB"
         elif "B_b" in var or "ProbB" in var:
             unit = unit + " Prob(b)"
         elif "B_bb" in var:
