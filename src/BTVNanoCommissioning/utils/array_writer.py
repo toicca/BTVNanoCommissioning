@@ -18,6 +18,11 @@ def array_writer(
         "dilep",
         "OtherJets",
         "Jet",
+        "PFCands",
+        "hl",
+        "sl",
+        "posl",
+        "negl",
     ],  # remove from variable list
     kinOnly=[
         "Muon",
@@ -36,7 +41,7 @@ def array_writer(
         "pfRelIso03_all",
         "dxy",
         "dz",
-    ],  # kinematic propoerties for the above variables
+    ],  # kinematic properties for the above variables
     othersData=[
         "PFCands_*",
         "MuonJet_*",
@@ -70,10 +75,6 @@ def array_writer(
         )
 
         # Handle kinOnly vars
-        remove = remove + ["PFCands", "hl", "sl", "posl", "negl"]
-        for v in remove:
-            out_branch = np.delete(out_branch, np.where((out_branch == v)))
-
         for kin in kins:
             for obj in kinOnly:
                 if "MET" in obj and ("pt" != kin or "phi" != kin):
@@ -83,6 +84,11 @@ def array_writer(
                 ):
                     continue
                 out_branch = np.append(out_branch, [f"{obj}_{kin}"])
+
+        for v in remove:
+            out_branch = np.delete(out_branch, np.where(np.char.find(out_branch, v) != -1))
+            othersData = np.delete(othersData, np.where(np.char.find(othersData, v) != -1))
+            othersMC = np.delete(othersMC, np.where(np.char.find(othersMC, v) != -1))
 
         # Handle data vars
         out_branch = np.append(out_branch, othersData)
