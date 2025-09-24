@@ -1100,9 +1100,177 @@ def validate_xrootd_path(path):
     return path
 
 
+def run_das_command(cmd):
+    """Run a DAS command with proper environment in micromamba"""
+    import os
+    import subprocess
+    import re
+    import tempfile
+
+    # Add debug info
+    print(f"\n==== DAS Command Debug Information ====")
+    # print(f"Original command: {cmd}")
+
+    # Check if we're in GitLab CI
+    in_ci = "CI" in os.environ or "GITLAB_CI" in os.environ
+
+    if in_ci:
+        # Extract the query part
+        match = re.search(r'-query="([^"]+)"', cmd)
+        if match:
+            query = match.group(1)
+            escaped_query = query.replace("*", "\\*")
+            escaped_cmd = cmd.replace(f'-query="{query}"', f'-query="{escaped_query}"')
+        else:
+            escaped_cmd = cmd
+
+        # Fix paths for CI
+        if (
+            "/common/dasgoclient" in escaped_cmd
+            and not "/cms.cern.ch/common/dasgoclient" in escaped_cmd
+        ):
+            escaped_cmd = escaped_cmd.replace(
+                "/common/dasgoclient", "/cms.cern.ch/common/dasgoclient"
+            )
+
+        # COMPLETELY DIFFERENT APPROACH: Write a script file and execute it
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sh", delete=False
+        ) as script_file:
+            script_path = script_file.name
+            script_file.write("#!/bin/bash\n\n")
+            script_file.write('echo "Starting DAS query from temp script"\n')
+            script_file.write('echo "Command: ' + escaped_cmd + '"\n')
+
+            # Add this near the beginning of your script generation, after the shebang
+            script_file.write('echo "Checking for proxy..."\n')
+            script_file.write(
+                'if [ -n "$X509_USER_PROXY" ] && [ -f "$X509_USER_PROXY" ]; then\n'
+            )
+            script_file.write('    echo "Using proxy from $X509_USER_PROXY"\n')
+            script_file.write(
+                'elif [ -f "${CI_PROJECT_DIR}/proxy/x509_proxy" ]; then\n'
+            )
+            script_file.write(
+                '    export X509_USER_PROXY="${CI_PROJECT_DIR}/proxy/x509_proxy"\n'
+            )
+            script_file.write(
+                '    echo "Found and using proxy at ${X509_USER_PROXY}"\n'
+            )
+            script_file.write("else\n")
+            script_file.write(
+                '    echo "WARNING: No proxy found! DAS queries may fail."\n'
+            )
+            script_file.write("fi\n\n")
+
+            # Add all possible CMS environment setup paths
+            script_file.write("if [ -f /cms.cern.ch/cmsset_default.sh ]; then\n")
+            script_file.write("    source /cms.cern.ch/cmsset_default.sh\n")
+            script_file.write('    echo "Sourced /cms.cern.ch/cmsset_default.sh"\n')
+            script_file.write(
+                "elif [ -f /cvmfs/cms.cern.ch/cmsset_default.sh ]; then\n"
+            )
+            script_file.write("    source /cvmfs/cms.cern.ch/cmsset_default.sh\n")
+            script_file.write(
+                '    echo "Sourced /cvmfs/cms.cern.ch/cmsset_default.sh"\n'
+            )
+            script_file.write("else\n")
+            script_file.write('    echo "WARNING: Could not find cmsset_default.sh"\n')
+            script_file.write("fi\n\n")
+
+            script_file.write('echo "Searching for dasgoclient:"\n')
+            script_file.write(
+                'DASGOCLIENT=""\n'
+            )  # Changed variable name to match usage below
+            script_file.write("if [ -f /cms.cern.ch/common/dasgoclient ]; then\n")
+            script_file.write('    echo "Found at /cms.cern.ch/common/dasgoclient"\n')
+            script_file.write('    DASGOCLIENT="/cms.cern.ch/common/dasgoclient"\n')
+            script_file.write(
+                "elif [ -f /cvmfs/cms.cern.ch/common/dasgoclient ]; then\n"
+            )
+            script_file.write(
+                '    echo "Found at /cvmfs/cms.cern.ch/common/dasgoclient"\n'
+            )
+            script_file.write(
+                '    DASGOCLIENT="/cvmfs/cms.cern.ch/common/dasgoclient"\n'
+            )
+            script_file.write("fi\n\n")
+
+            # Add error checking for dasgoclient
+            script_file.write('if [ -z "$DASGOCLIENT" ]; then\n')
+            script_file.write('    echo "ERROR: dasgoclient not found!"\n')
+            script_file.write("    exit 1\n")
+            script_file.write("fi\n\n")
+
+            # Extract the query and run it - properly handle the extraction
+            query_match = re.search(r'-query="([^"]+)"', cmd)
+            if query_match:
+                query = query_match.group(1)
+                # Remove double asterisks which cause problems
+                query = query.replace("**", "*")
+                # Add quotes around the query and execute with proper syntax
+                script_file.write(
+                    f'echo "Executing command: $DASGOCLIENT -query=\\"{query}\\""\n'
+                )
+                script_file.write(f'$DASGOCLIENT -query="{query}"\n')
+            else:
+                script_file.write(f"{cmd}\n")
+
+        # Make script executable
+        os.chmod(script_path, 0o755)
+        # print(f"Created temporary script at: {script_path}")
+
+        # Execute the script
+        try:
+            print(f"Executing script: {script_path}")
+            result = subprocess.run([script_path], capture_output=True, text=True)
+
+            print(f"Script return code: {result.returncode}")
+
+            if result.stdout:
+                print(f"Script stdout (first 800 chars): {result.stdout[:800]}")
+            if result.stderr:
+                print(f"Script stderr: {result.stderr}")
+
+            if result.returncode != 0:
+                print(f"Script failed with code {result.returncode}")
+                return []
+
+            output = [line for line in result.stdout.strip().split("\n") if line]
+            # Remove the script's debug lines from output
+            output = [
+                line
+                for line in output
+                if not line.startswith("Starting")
+                and not line.startswith("Sourced")
+                and not line.startswith("Found")
+                and not line.startswith("Using")
+                and not line.startswith("Command")
+                and not line.startswith("Checking")
+                and not line.startswith("Searching")
+                and not line.startswith("Trying")
+                and not line.startswith("Executing")
+            ]
+            return output
+
+        except Exception as e:
+            print(f"Exception executing script: {e}")
+            return []
+        finally:
+            # Clean up the temp script
+            os.unlink(script_path)
+
+    else:
+        # Local environment - unchanged
+        print(f"Executing local command with os.popen: {cmd}")
+        result = os.popen(cmd).read().splitlines()
+        return result
+
+
 def getFilesFromDas(args):
     """Improved getFilesFromDas with multiple fallback strategies"""
     # Check if we're in GitLab CI
+
     in_ci = determine_execution_mode()
 
     fset = []
@@ -1134,6 +1302,7 @@ def getFilesFromDas(args):
         if not dataset.startswith("/"):
             print(
                 f"WARNING: Dataset '{dataset}' does not start with '/' - trying anyway"
+
             )
 
         # Try to get dsname safely
@@ -1236,6 +1405,7 @@ def getFilesFromDas(args):
                 "cern": "root://cms-xrd-global.cern.ch/",
             }
             xrd = redirector[args.redirector]
+
             if args.limit is not None:
                 flist = flist[: args.limit]
             if dsname not in fdict:
@@ -1358,7 +1528,6 @@ def getFilesFromDas(args):
 
         # Add files to dictionary
         if dsname not in fdict:
-
             if best_site in site_url_formats:
                 redirector = site_url_formats[best_site]["redirector"]
                 print(f"Using redirector for site {best_site}: {redirector}")
@@ -1559,12 +1728,12 @@ def direct_das_query(dataset_name, campaign_pattern):
 
     try:
         # Check if we're in CI environment
-
         in_ci = determine_execution_mode()
 
         if not in_ci:
             # For local environment - use direct dasgoclient call
             cmd = f'dasgoclient -query="instance=prod/global {query}"'
+
 
             print(f"Local command: {cmd}")
             # Use the already-working run_das_command function instead of os.popen
@@ -1660,6 +1829,7 @@ def main(args):
                 for campaign in campaign_list:
                     dataset.extend(direct_das_query(l, campaign))
 
+
             if not dataset:
                 print(
                     f"WARNING: No datasets found for {l} among campaigns {campaign_list}\n"
@@ -1703,6 +1873,7 @@ def main(args):
                     print(f"WARNING: Skipping invalid dataset result for {l}")
 
             print()
+
         outf.close()
     ## If put the path
     if args.from_path:

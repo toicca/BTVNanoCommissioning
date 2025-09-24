@@ -87,11 +87,10 @@ class NanoProcessor(processor.ProcessorABC):
             "sumw": processor.defaultdict_accumulator(float),
             **_hist_event_dict,
         }
-        if shift_name is None:
-            if isRealData:
-                output["sumw"] = len(events)
-            else:
-                output["sumw"] = ak.sum(events.genWeight)
+        if isRealData:
+            output["sumw"] = len(events)
+        else:
+            output["sumw"] = ak.sum(events.genWeight)
 
         ####################
         #    Selections    #
@@ -111,7 +110,6 @@ class NanoProcessor(processor.ProcessorABC):
             ]
         elif self.selectionModifier == "PFJet":
             triggers = [
-                "ZeroBias",
                 "PFJet40",
                 "PFJet60",
                 "PFJet80",
@@ -127,7 +125,6 @@ class NanoProcessor(processor.ProcessorABC):
             ]
         elif self.selectionModifier == "DiPFJetAve":
             triggers = [
-                "ZeroBias",
                 "DiPFJetAve40",
                 "DiPFJetAve60",
                 "DiPFJetAve80",
@@ -139,7 +136,9 @@ class NanoProcessor(processor.ProcessorABC):
                 "DiPFJetAve500",
             ]
         else:
-            raise ValueError(self.selectionModifier, "is not a valid selection modifier.")
+            raise ValueError(
+                self.selectionModifier, "is not a valid selection modifier."
+            )
 
         req_trig = HLT_helper(events, triggers)
         req_metfilter = MET_filters(events, self._campaign)
@@ -148,7 +147,11 @@ class NanoProcessor(processor.ProcessorABC):
 
         ##### Add some selections
         ## Jet cuts
-        jet_sel = (events.Jet.pt >= 15) & (abs(events.Jet.eta) < 5.31) & (events.Jet.jetId >= 4)
+        jet_sel = (
+            (events.Jet.pt >= 15)
+            & (abs(events.Jet.eta) < 5.31)
+            & (events.Jet.jetId >= 4)
+        )
 
         if self._year == "2016":
             jet_puid = events.Jet.puId >= 1
@@ -160,16 +163,25 @@ class NanoProcessor(processor.ProcessorABC):
         jet_sel = jet_sel & jet_puid
         event_jet = ak.mask(events.Jet, jet_sel)
         event_jet = ak.pad_none(event_jet, 3)
-        events.Jet = ak.pad_none(events.Jet, 3) # Make sure that the shape is consistent
-        
+        events.Jet = ak.pad_none(
+            events.Jet, 3
+        )  # Make sure that the shape is consistent
+
         req_jet = ak.count(event_jet.pt, axis=1) > 1
         req_dphi = abs(event_jet[:, 0].delta_phi(event_jet[:, 1])) > 2.7
-        req_subjet = ak.where(ak.count(event_jet.pt, axis=1) > 2, event_jet[:, 2].pt / (0.5*(event_jet[:,0] + event_jet[:,1])).pt < 1.0, ak.ones_like(req_jet))
-        req_tagjet = ak.where(req_jet,
-                            ak.fill_none(np.abs(event_jet.eta[:,0]) < 1.3, False) | ak.fill_none(np.abs(event_jet.eta[:,1]) < 1.3, False),
-                            ak.zeros_like(req_jet))
+        req_subjet = ak.where(
+            ak.count(event_jet.pt, axis=1) > 2,
+            event_jet[:, 2].pt / (0.5 * (event_jet[:, 0] + event_jet[:, 1])).pt < 1.0,
+            ak.ones_like(req_jet),
+        )
+        req_tagjet = ak.where(
+            req_jet,
+            ak.fill_none(np.abs(event_jet.eta[:, 0]) < 1.3, False)
+            | ak.fill_none(np.abs(event_jet.eta[:, 1]) < 1.3, False),
+            ak.zeros_like(req_jet),
+        )
 
-        event_level = event_level & req_jet & req_dphi & req_subjet & req_tagjet
+        event_level = event_level & req_jet & req_dphi & req_subjet # & req_tagjet
 
         ## MC only: require gen vertex to be close to reco vertex
         if "GenVtx_z" in events.fields:
@@ -195,6 +207,7 @@ class NanoProcessor(processor.ProcessorABC):
                 )
             return {dataset: output}
 
+
         ##===>  Ntuplization  : store custom information
         ####################
         # Selected objects # : Pruned objects with reduced event_level
@@ -202,27 +215,27 @@ class NanoProcessor(processor.ProcessorABC):
         # Keep the structure of events and pruned the object size
         pruned_ev = events[event_level]
 
-        pruned_ev["Tag"] = (
-            ak.where(
-                ak.fill_none(np.abs(pruned_ev.Jet.eta)[:,0] < 1.3, False) & ak.fill_none(np.abs(pruned_ev.Jet.eta)[:,1] < 1.3, False),
-                pruned_ev.Jet[:, np.random.randint(0, 2)], # Is this correct? Is a single value returned for the whole program or for each event?
-                ak.where(
-                    np.abs(pruned_ev.Jet.eta)[:,0] < 1.3,
-                    pruned_ev.Jet[:, 0],
-                    pruned_ev.Jet[:, 1]
-                )
-            )
-        )
+        # pruned_ev["Tag"] = ak.where(
+            # ak.fill_none(np.abs(pruned_ev.Jet.eta)[:, 0] < 1.3, False)
+            # & ak.fill_none(np.abs(pruned_ev.Jet.eta)[:, 1] < 1.3, False),
+            # pruned_ev.Jet[
+                # :, np.random.randint(0, 2)
+            # ],  # Is this correct? Is a single value returned for the whole program or for each event?
+            # ak.where(
+                # np.abs(pruned_ev.Jet.eta)[:, 0] < 1.3,
+                # pruned_ev.Jet[:, 0],
+                # pruned_ev.Jet[:, 1],
+            # ),
+        # )
+        pruned_ev["Tag"] = pruned_ev.Jet[:, np.random.randint(0, 2)]
         pruned_ev["Tag", "pt"] = pruned_ev["Tag"].pt
         pruned_ev["Tag", "eta"] = pruned_ev["Tag"].eta
         pruned_ev["Tag", "phi"] = pruned_ev["Tag"].phi
         pruned_ev["Tag", "mass"] = pruned_ev["Tag"].mass
-        pruned_ev["SelJet"] = (
-            ak.where(
-                pruned_ev.Jet[:, 0].pt == pruned_ev.Tag.pt,
-                pruned_ev.Jet[:, 1],
-                pruned_ev.Jet[:, 0]
-            )
+        pruned_ev["SelJet"] = ak.where(
+            pruned_ev.Jet[:, 0].pt == pruned_ev.Tag.pt,
+            pruned_ev.Jet[:, 1],
+            pruned_ev.Jet[:, 0],
         )
         pruned_ev["njet"] = ak.count(pruned_ev.Jet.pt, axis=1)
 
@@ -238,12 +251,7 @@ class NanoProcessor(processor.ProcessorABC):
             systematics = ["nominal"] + list(weights.variations)
         else:
             systematics = [shift_name]
-        if not isRealData:
-            pruned_ev["weight"] = weights.weight()
-            for ind_wei in weights.weightStatistics.keys():
-                pruned_ev[f"{ind_wei}_weight"] = weights.partial_weight(
-                    include=[ind_wei]
-                )
+
 
         # Configure histograms
         if not self.noHist:
@@ -252,7 +260,30 @@ class NanoProcessor(processor.ProcessorABC):
             )
         # Output arrays
         if self.isArray:
-            array_writer(self, pruned_ev, events, weights, systematics, dataset, isRealData)
+            othersData = [
+                "SV_*",
+                "PV_npvs",
+                "PV_npvsGood",
+                "Rho_*",
+                "SoftMuon_dxySig",
+                "Muon_sip3d",
+                "run",
+                "luminosityBlock",
+            ]
+            for trigger in triggers:
+                othersData.append(f"HLT_{trigger}")
+            array_writer(
+                self,
+                pruned_ev,
+                events,
+                weights,
+                systematics,
+                dataset,
+                isRealData,
+                othersData=othersData,
+            )
+
+        print({dataset: output})
 
         return {dataset: output}
 

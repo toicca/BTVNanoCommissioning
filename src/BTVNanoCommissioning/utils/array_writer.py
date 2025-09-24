@@ -51,6 +51,7 @@ def array_writer(
     othersMC=["Pileup_nTrueInt", "Pileup_nPU"],  # other fields, for MC only
     empty=False,
 ):
+
     if weights is not None:
         pruned_event["weight"] = weights.weight()
         for ind_wei in weights.weightStatistics.keys():
@@ -58,7 +59,9 @@ def array_writer(
                 include=[ind_wei]
             )
         if len(systname) > 1:
-            for syst in systname[1:]:
+            for syst in systname:
+                if syst == "nominal":
+                    continue
                 pruned_event[f"weight_syst_{syst}"] = weights.weight(modifier=syst)
 
     if empty:
