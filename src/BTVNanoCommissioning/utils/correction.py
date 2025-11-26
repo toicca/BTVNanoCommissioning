@@ -66,24 +66,27 @@ def load_SF(year, campaign, syst=False):
     """
     # read the configuration file to get the correct SFs
     correct_map = {"campaign": campaign}
-
+    print(f"Loading SF for campaign: {campaign}")
+    #for key, value in campaign_map().items():
+        #print(f"{key} : {value}")
+        
     for SF in config[campaign].keys():
         if SF == "DC":
             continue
         ## pileup weight
         if SF == "LUM":
             ## Check whether files in jsonpog-integration exist
+            path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[SF][campaign]}/latest/"
+            print(f"############### /cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[SF][campaign]}/latest/")
+            print(f"Checking path: {path}")
+            print("Exists?", os.path.exists(path))
             if os.path.exists(
-                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[campaign]}/latest/"
+                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[SF][campaign]}/latest/"
             ):
-                try:
-                    correct_map["LUM"] = correctionlib.CorrectionSet.from_file(
-                        f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[campaign]}/latest/puWeights.json.gz"
-                    )
-                except FileNotFoundError:
-                    correct_map["LUM"] = correctionlib.CorrectionSet.from_file(
-                        f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[campaign]}/latest/puWeights_BCDEFGHI.json.gz"
-                    )
+                correct_map["LUM"] = correctionlib.CorrectionSet.from_file(
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{campaign_map()[SF][campaign]}/latest/puWeights.json.gz"
+                )
+                
             ## Otherwise custom files
             else:
                 _pu_path = f"BTVNanoCommissioning.data.LUM.{campaign}"
@@ -119,13 +122,13 @@ def load_SF(year, campaign, syst=False):
                     )
                 )
             if os.path.exists(
-                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{campaign_map()[campaign]}/latest/"
+                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{campaign_map()[SF][campaign]}/latest/"
             ):
                 correct_map["btag"] = correctionlib.CorrectionSet.from_file(
-                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{campaign_map()[campaign]}/latest/btagging.json.gz"
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{campaign_map()[SF][campaign]}/latest/btagging.json.gz"
                 )
                 correct_map["ctag"] = correctionlib.CorrectionSet.from_file(
-                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{campaign_map()[campaign]}/latest/ctagging.json.gz"
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{campaign_map()[SF][campaign]}/latest/ctagging.json.gz"
                 )
             else:
                 correct_map["btag"] = {}
@@ -172,9 +175,9 @@ def load_SF(year, campaign, syst=False):
                 if "ele" in e and "_json" not in e
             }
             ## muon
-            _mu_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/{campaign_map()[campaign]}/latest//muon_Z.json.gz"
+            _mu_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/{campaign_map()[SF][campaign]}/latest//muon_Z.json.gz"
             if not os.path.exists(_mu_path):
-                _mu_path = f"src/BTVNanoCommissioning/data/MUO/{campaign_map()[campaign]}/latest//muon_Z.json.gz"
+                _mu_path = f"src/BTVNanoCommissioning/data/MUO/{campaign_map()[SF][campaign]}/latest//muon_Z.json.gz"
             if os.path.exists(_mu_path):
                 correct_map["MUO"] = correctionlib.CorrectionSet.from_file(_mu_path)
             ## electron
@@ -182,9 +185,9 @@ def load_SF(year, campaign, syst=False):
                 "electron": "EGM",
                 "electronHlt": "EGM_HLT",
             }.items():
-                _ele_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/{campaign_map()[campaign]}/latest//{_ele_file}.json.gz"
+                _ele_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/{campaign_map()[SF][campaign]}/latest//{_ele_file}.json.gz"
                 if not os.path.exists(_ele_path):
-                    _ele_path = f"src/BTVNanoCommissioning/data/EGM/{campaign_map()[campaign]}/latest//{_ele_file}.json.gz"
+                    _ele_path = f"src/BTVNanoCommissioning/data/EGM/{campaign_map()[SF][campaign]}/latest//{_ele_file}.json.gz"
                 if os.path.exists(_ele_path):
                     correct_map[_ele_map] = correctionlib.CorrectionSet.from_file(
                         _ele_path
@@ -195,14 +198,14 @@ def load_SF(year, campaign, syst=False):
                 != -1
             ):
                 correct_map["MUO"] = correctionlib.CorrectionSet.from_file(
-                    f"src/BTVNanoCommissioning/data/MUO/{campaign_map()[campaign]}/latest/{config[campaign]['MUO']['mu_json']}"
+                    f"src/BTVNanoCommissioning/data/MUO/{campaign_map()[SF][campaign]}/latest/{config[campaign]['MUO']['mu_json']}"
                 )
             if any(
                 np.char.find(np.array(list(config[campaign]["EGM"].keys())), "ele_json")
                 != -1
             ):
                 correct_map["EGM"] = correctionlib.CorrectionSet.from_file(
-                    f"src/BTVNanoCommissioning/data/EGM/{campaign_map()[campaign]}/latest/{config[campaign]['EGM']['ele_json']}"
+                    f"src/BTVNanoCommissioning/data/EGM/{campaign_map()[SF][campaign]}/latest/{config[campaign]['EGM']['ele_json']}"
                 )
 
             ## check if any custom corrections needed
@@ -300,15 +303,15 @@ def load_SF(year, campaign, syst=False):
 
         ## lepton scale & smearing
         elif SF == "muonSS":
-            _mu_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/{campaign_map()[campaign]}/latest/muon_scalesmearing.json.gz"
+            _mu_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/{campaign_map()['MUO'][campaign]}/latest/muon_scalesmearing.json.gz"
             if not os.path.exists(_mu_path):
-                _mu_path = f"src/BTVNanoCommissioning/data/MUO/{campaign_map()[campaign]}/latest/muon_scalesmearing.json.gz"
+                _mu_path = f"src/BTVNanoCommissioning/data/MUO/{campaign_map()['MUO'][campaign]}/latest/muon_scalesmearing.json.gz"
             if os.path.exists(_mu_path):
                 correct_map["muonSS"] = correctionlib.CorrectionSet.from_file(_mu_path)
         elif SF == "electronSS":
-            _ele_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/{campaign_map()[campaign]}/latest/electronSS_EtDependent{'_v1' if year == '2024' else ''}.json.gz"
+            _ele_path = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/{campaign_map()['EGM'][campaign]}/latest/electronSS_EtDependent{'_v1' if year == '2024' else ''}.json.gz"
             if not os.path.exists(_ele_path):
-                _ele_path = f"src/BTVNanoCommissioning/data/EGM/{campaign_map()[campaign]}/latest/electronSS_EtDependent.json.gz"
+                _ele_path = f"src/BTVNanoCommissioning/data/EGM/{campaign_map()['EGM'][campaign]}/latest/electronSS_EtDependent.json.gz"
             if os.path.exists(_ele_path):
                 correct_map["electronSS"] = correctionlib.CorrectionSet.from_file(
                     _ele_path
@@ -336,7 +339,8 @@ def load_SF(year, campaign, syst=False):
         elif SF == "JME":
             if "name" in config[campaign]["JME"].keys():
                 if not os.path.exists(
-                    f"src/BTVNanoCommissioning/data/JME/{campaign_map()[campaign]}/latest/jec_compiled_{config[campaign]['JME']['name']}.pkl.gz"
+                    #f"src/BTVNanoCommissioning/data/JME/{campaign_map()[campaign]}/latest/jec_compiled_{config[campaign]['JME']['name']}.pkl.gz"
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[SF][campaign]}/latest/jec_compiled_{config[campaign]['JME']['name']}.pkl.gz"#LisaMod
                 ):
                     _compile_jec_(
                         year,
@@ -351,10 +355,10 @@ def load_SF(year, campaign, syst=False):
                     f"jec_compiled_{config[campaign]['JME']['name']}.pkl.gz",
                 )
             elif os.path.exists(
-                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jet_jerc.json.gz"
+                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[SF][campaign]}/latest/jet_jerc.json.gz"
             ):
                 correct_map["JME"] = correctionlib.CorrectionSet.from_file(
-                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jet_jerc.json.gz"
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[SF][campaign]}/latest/jet_jerc.json.gz"
                 )
                 correct_map["JME_cfg"] = config[campaign]["JME"]
                 for dataset in correct_map["JME_cfg"].keys():
@@ -372,42 +376,43 @@ def load_SF(year, campaign, syst=False):
                         )
         elif SF == "JMAR":
             if os.path.exists(
-                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jmar.json.gz"
+                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()['JME'][campaign]}/latest/jmar.json.gz"
             ):
                 correct_map["JMAR_cfg"] = {
                     j: f for j, f in config[campaign]["JMAR"].items()
                 }
                 correct_map["JMAR"] = correctionlib.CorrectionSet.from_file(
-                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jmar.json.gz"
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()['JME'][campaign]}/latest/jmar.json.gz"
                 )
 
         elif SF == "jetveto":
+            print(campaign_map())
             correct_map["jetveto_cfg"] = {
                 j: f for j, f in config[campaign]["jetveto"].items()
             }
 
-            isRootFile = False
-            for val in correct_map["jetveto_cfg"].values():
-                if ".root" in val:
-                    isRootFile = True
+            #isRootFile = False
+            #for val in correct_map["jetveto_cfg"].values():
+                #if ".root" in val:
+                    #isRootFile = True
 
-            if not isRootFile and os.path.exists(
-                f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jetvetomaps.json.gz"
-            ):
-                correct_map["jetveto"] = correctionlib.CorrectionSet.from_file(
-                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jetvetomaps.json.gz"
+            #if not isRootFile and os.path.exists(
+               # f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()[campaign]}/latest/jetvetomaps.json.gz"
+            #):
+            correct_map["jetveto"] = correctionlib.CorrectionSet.from_file(
+                    f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{campaign_map()['JME'][campaign]}/latest/jetvetomaps.json.gz"
                 )
-            else:
-                ext = extractor()
-                with contextlib.ExitStack() as stack:
-                    ext.add_weight_sets(
-                        [
-                            f"{run} {stack.enter_context(importlib.resources.path(f'BTVNanoCommissioning.data.JME.{campaign}', file))}"
-                            for run, file in config[campaign]["jetveto"].items()
-                        ]
-                    )
-                    ext.finalize()
-                    correct_map["jetveto"] = ext.make_evaluator()
+            #else:
+                #ext = extractor()
+                #with contextlib.ExitStack() as stack:
+                    #ext.add_weight_sets(
+                        #[
+                            #f"{run} jetvetomap {stack.enter_context(importlib.resources.path(f'BTVNanoCommissioning.data.JME.{campaign}', file))}"
+                            #for run, file in config[campaign]["jetveto"].items()
+                        #]
+                    #)
+                    #ext.finalize()
+                    #correct_map["jetveto"] = ext.make_evaluator()
 
     return correct_map
 
@@ -598,8 +603,13 @@ def JME_shifts(
                     )
                 else:
                     jecname = jecname[0] + "_DATA"
+                    if "Summer22" in jecname and "V2" in jecname:
+                        jecname = jecname.replace("V2", "V3")
             else:
                 jecname = correct_map["JME_cfg"]["MC"].split(" ")[0] + "_MC"
+                if "Summer22" in jecname and "V2" in jecname:
+                        jecname = jecname.replace("V2", "V3")
+                    
                 jrname = correct_map["JME_cfg"]["MC"].split(" ")[1] + "_MC"
 
             # store the original jet info
@@ -623,6 +633,10 @@ def JME_shifts(
             j, nj = ak.flatten(nocorrjet), ak.num(nocorrjet)
 
             # JEC
+            print(f'###############')
+            for k in correct_map["JME"].compound.keys():
+                print("  ", k)
+            print(correct_map["JME"].compound[f"{jecname}_L1L2L3Res_AK4PFPuppi"])
             JECcorr = correct_map["JME"].compound[f"{jecname}_L1L2L3Res_AK4PFPuppi"]
             JEC_input = get_corr_inputs(j, JECcorr)
             JECflatCorrFactor = JECcorr.evaluate(*JEC_input)
@@ -1141,6 +1155,11 @@ def EGM_shifts(shifts, correct_map, events, isRealData, systematic=False):
     Adapted from this example of electron SS correction usage:
     https://gitlab.cern.ch/cms-nanoAOD/jsonpog-integration/-/blob/master/examples/egmScaleAndSmearingExample.py
     """
+    print(">>> DEBUG electronSS compound keys (EGM_shifts):")
+    try:
+        print(list(correct_map["electronSS"].compound.keys()))
+    except Exception as e:
+        print(">>> Could not list compound keys:", e)
 
     ele = events.Electron
     n_ele = ak.num(ele)
@@ -1150,14 +1169,27 @@ def EGM_shifts(shifts, correct_map, events, isRealData, systematic=False):
         if "Summer24" in correct_map["campaign"]
         else ak.flatten(ele.eta + ele.deltaEtaSC)
     )
+    print("ciao1")
     ele_r9 = ak.flatten(ele.r9)
     ele_pt = ak.flatten(ele.pt)
     ele_seedGain = ak.flatten(ele.seedGain)
 
     if isRealData:  # scale correction is only applied to data
+        print("ciao2")
         scale_evaluator = correct_map["electronSS"].compound[
             correct_map["electronSS_cfg"][0]
         ]
+        """
+        compound_keys = list(correct_map["electronSS"].compound.keys())
+
+        target_key = correct_map["electronSS_cfg"][0]
+        if target_key not in compound_keys:
+            print(f"[WARN] Requested electronSS key '{target_key}' not found. "
+                f"Available: {compound_keys}. Falling back to 'Scale'.")
+            target_key = "scale"
+
+        scale_evaluator = correct_map["electronSS"].compound[target_key]
+        """
         if "Summer24" in correct_map["campaign"]:
             scale = scale_evaluator.evaluate(
                 "scale", events_run, ele_etaSC, ele_r9, ele_pt, ele_seedGain
@@ -1171,6 +1203,7 @@ def EGM_shifts(shifts, correct_map, events, isRealData, systematic=False):
                 ele_pt,
                 ele_seedGain,
             )
+        print("ciao3")
         scale = ak.unflatten(scale, n_ele)
         ele_pt_corr = scale * ele.pt
     else:  # smear correction is only applied to MC
@@ -2461,8 +2494,10 @@ def common_shifts(self, events):
             shift[0]["Muon"] = events.Muon
 
     if "electronSS" in self.SF_map.keys():
-        shifts = EGM_shifts(shifts, self.SF_map, events, isRealData, False)
+        print("############ Skipping electron scale smearing shifts")
+        #shifts = EGM_shifts(shifts, self.SF_map, events, isRealData, False)
     else:
+        print("############ NOT Applying electron scale smearing shifts")
         for shift in shifts:
             shift[0]["Electron"] = events.Electron
 

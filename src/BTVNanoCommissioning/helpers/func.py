@@ -10,28 +10,93 @@ import collections
 
 from pathlib import Path
 
-
 def campaign_map():
+    base_dirs = {
+        "JME": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/"),
+        "BTV": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/"),
+        "EGM": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/"),
+        "MUO": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/"),
+        "DC": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/DC/"),
+        "LUM": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/")
+    }
+
+    cmap = {}
+
+    for key, base_path in base_dirs.items():
+        cmap[key] = {}
+        if not base_path.is_dir():
+            continue
+
+        subdirs = [p.name for p in base_path.iterdir() if p.is_dir()]
+        for sd in subdirs:
+        
+            #if sd == "JER-Smearing":
+                    #continue
+            if "Run3" in sd:
+                print("Run3", sd)
+                cmap[key][sd.split("-")[2]] = sd
+            elif "Run2" in sd:
+                cmap[key][sd.split("-")[1] + "-UL"] = sd
+            elif sd.startswith("Collisions"):
+                print("Collisions", sd)
+                if sd[len("Collisions"):] == "23" or sd[len("Collisions"):] == "22":
+                    cmap[key]["Summer23"] = sd
+                    cmap[key]["Summer23BPix"] = sd
+                    cmap[key]["Summer22EE"] = sd
+
+                else:
+                    continue
+            elif sd == "JER-Smearing":
+                continue
+            else:
+                raise ValueError("Unknown campaign name")
+
+    return cmap
+"""
+def campaign_map():
+    #Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/")
     dirs = [
         Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/"),
         Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/"),
         Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/"),
         Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/"),
-        Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM"),
+        Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/DC/")
     ]
+<<<<<<< HEAD
+=======
+    base_dirs = {
+        "JME": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/"),
+        "BTV": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/"),
+        "EGM": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/"),
+        "MUO": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/"),
+        "DC": Path("/cvmfs/cms-griddata.cern.ch/cat/metadata/DC/")
+    }
+
+
+>>>>>>> 82f5533 (Upadated correction files for 2022)
     subdirs = [p.name for d in dirs if d.is_dir() for p in d.iterdir() if p.is_dir()]
     dirnames = {}
     for i in range(len(subdirs)):
+        print("############", subdirs[i])
         if "Run3" in subdirs[i]:
             dirnames[subdirs[i].split("-")[2]] = subdirs[i]
         elif "Run2" in subdirs[i]:
             dirnames[subdirs[i].split("-")[1] + "-UL"] = subdirs[i]
+<<<<<<< HEAD
         elif "Run3" not in subdirs[i] and "Run2" not in subdirs[i]:
+=======
+        elif subdirs[i].startswith("Collisions"):
+            if subdirs[i][len("Collisions"):] == "23":
+                print("Found Summer23 campaign")
+                dirnames["Summer23"] = subdirs[i]
+                dirnames["Summer23BPix"] = subdirs[i]
+        elif subdirs[i] == "JER-Smearing":
+>>>>>>> 82f5533 (Upadated correction files for 2022)
             continue
         else:
             raise ValueError("Unknown campaign name")
     return dirnames
-
+"""
 
 def memory_usage_psutil():
     # return the memory usage in MB
