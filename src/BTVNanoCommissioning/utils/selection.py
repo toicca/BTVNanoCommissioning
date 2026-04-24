@@ -80,7 +80,7 @@ def jet_id(events, campaign, max_eta=2.5, min_pt=20):
     else:
         jetid = events.Jet.jetId >= 5
 
-    jetid = ak.values_astype(jetid, bool)
+    jetid = ak.values_astype(jetid, bool) #lisamod : before was np.bool 
 
     if campaign == "Rereco17_94X":
         # Use puId for Run2
