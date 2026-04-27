@@ -479,6 +479,8 @@ predefined_sample = {
             "QCD_Bin-PT-2000to2500_TuneCP5_13p6TeV_pythia8",
             "QCD_Bin-PT-2500to3000_TuneCP5_13p6TeV_pythia8",
             "QCD_Bin-PT-3000_TuneCP5_13p6TeV_pythia8",
+            # Herwig 7 flat Summer24
+            "QCD_Bin-PT-15to7000_Par-PT-Flat_TuneCH3_13p6TeV_herwig7",
         ],
     },
     "qgtag_photonjet": {
