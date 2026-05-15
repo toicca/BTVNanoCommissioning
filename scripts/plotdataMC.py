@@ -447,13 +447,13 @@ def main(args):
             )
             hmc = collated["mc"][discr][SF_axis]
             MCerrorband(hmc, ax=ax, flow=args.flow)  # stat. unc. errorband
-            SFerror = SFerror(collated, discr, flow=args.flow)
+            sf_err = SFerror(collated, discr, flow=args.flow)
             other = {"hatch": "\\\\", "lw": 0, "color": "r", "alpha": 0.4}
             MCerrorband(
                 hmc,
                 ax=ax,
                 flow=args.flow,
-                ext_error=SFerror,
+                ext_error=sf_err,
                 label="SF unc.",
                 fill_opts=other,
             )  # stat. unc. errorband
@@ -468,7 +468,7 @@ def main(args):
                 collated["data"][discr][noSF_axis],
                 hmc,
                 ax=rax,
-                ext_denom_error=SFerror,
+                ext_denom_error=sf_err,
                 error_opts={"color": "r", "marker": "v"},
                 denom_fill_opts=other,
                 clear=False,
