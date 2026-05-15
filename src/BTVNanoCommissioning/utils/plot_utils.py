@@ -23,8 +23,7 @@ color_map = {
     "DY": "#ff5e02",
     "QCD": "#adad7d",
     "QCD($\\mu$)": "#656364",
-    "Ph+jets (HT-binned)": "#f2ab6d",
-    "Ph+jets (HT+PTG-binned)": "tab:brown",
+    "Ph+jets": "#f2ab6d",
     # https://btvweb.web.cern.ch/artworks/BTV_colorpalette/Palette.png
     "udsg": "#15a3ef",  # blue
     "ud": "#15a3ef",  # blue
