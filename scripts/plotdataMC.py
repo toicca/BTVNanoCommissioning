@@ -728,6 +728,10 @@ def main(args=args):
             ax.set_ylim(bottom=0.1)
             hep.mpl_magic(ax=ax)
 
+        if args.logx:
+            name += "_logx"
+            ax.set_xscale("log")
+
         # Save the plots
         for filetype in args.save_as.split(","):
             if filetype not in ["png", "pdf"]:
