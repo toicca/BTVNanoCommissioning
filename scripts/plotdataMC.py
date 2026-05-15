@@ -146,7 +146,6 @@ def main(args=args):
 
     output = scaleSumW(output, args.lumi)
 
-
     mergemap = {}
     ## create merge map from sample set/data MC
     if not os.path.isdir(f"plot/{args.phase}_{args.ext}/"):
@@ -180,27 +179,27 @@ def main(args=args):
         flav_set = ["ud", "s", "c", "b", "g", "other"]
 
     ### input text settings
-    input_txt = "placeholder"
+    phase_label_map = {
+        "Wc":     "W+c",
+        "DY":     "DY+jets",
+        "QCD":    "QCD",
+        "semilep": r"t$\bar{t}$ semileptonic",
+        "dilep":  r"t$\bar{t}$ dileptonic",
+        "dijet":  "QCD dijet",
+    }
+    phase_nj_map = {"semilep": 4, "dilep": 2}
+    osss_suffix  = {1: " OS", -1: " SS"}
+
+    input_txt = next(
+        (label for key, label in phase_label_map.items() if key in args.phase),
+        "placeholder",
+    )
     if "Wc" in args.phase:
-        input_txt = "W+c"
-        if args.splitOSSS == 1:
-            input_txt = input_txt + " OS"
-        elif args.splitOSSS == -1:
-            input_txt = input_txt + " SS"
-        else:
-            input_txt = input_txt + " OS-SS"
-    elif "DY" in args.phase:
-        input_txt = "DY+jets"
-    elif "QCD" in args.phase:
-        input_txt = "QCD"
-    elif "semilep" in args.phase:
-        input_txt = r"t$\bar{t}$ semileptonic"
-        nj = 4
-    elif "dilep" in args.phase:
-        input_txt = r"t$\bar{t}$ dileptonic"
-        nj = 2
-    elif "dijet" in args.phase:
-        input_txt = "QCD dijet"
+        input_txt += osss_suffix.get(args.splitOSSS, " OS-SS")
+    for key, nj_val in phase_nj_map.items():
+        if key in args.phase:
+            nj = nj_val
+            break
 
     if (
         "njet" in args.variable.split(",")
@@ -210,20 +209,18 @@ def main(args=args):
         nj = 1
 
     if "emctag" in args.phase:
-        input_txt = input_txt + " (e$\mu$)"
+        input_txt += r" (e$\mu$)"
     elif "ectag" in args.phase:
-        input_txt = input_txt + " (e)"
-    elif "QCD" == args.phase:
-        input_txt = input_txt + ""
-    elif "ttdilep_sf" == args.phase:
-        input_txt = input_txt + " (e$\mu$)"
-    elif "qg" in args.phase.lower():
+        input_txt += " (e)"
+    elif args.phase == "ttdilep_sf":
+        input_txt += r" (e$\mu$)"
+    elif args.phase == "QCD" or "qg" in args.phase.lower():
         pass
     else:
-        input_txt = input_txt + " ($\mu$)"
+        input_txt += r" ($\mu$)"
 
     if "ctag" in args.phase and "DY" not in args.phase:
-        input_txt = input_txt + "\nw/ soft-$\mu$"
+        input_txt += "\nw/ soft-$\mu$"
 
     if args.variable == "all":
         var_set = [var for var in collated["mc"].keys()]
