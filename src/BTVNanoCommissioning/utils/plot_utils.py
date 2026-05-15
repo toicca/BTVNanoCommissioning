@@ -23,8 +23,13 @@ color_map = {
     "DY": "#ff5e02",
     "QCD": "#adad7d",
     "QCD($\\mu$)": "#656364",
+    "Ph+jets (HT-binned)": "#f2ab6d",
+    "Ph+jets (HT+PTG-binned)": "tab:brown",
     # https://btvweb.web.cern.ch/artworks/BTV_colorpalette/Palette.png
     "udsg": "#15a3ef",  # blue
+    "ud": "#15a3ef",  # blue
+    "s": "#209A24", # green
+    "g": "#7a21dd", # purple
     "pu": "#717581",  # grey
     "c": "#ed1e02",  # red
     "b": "#fcb302",  # yellow
@@ -226,6 +231,29 @@ sample_mergemap = {
         "QCD_PT-800to1000_MuEnrichedPt5_TuneCP5_13p6TeV_pythia8",
         "QCD_PT-1000_MuEnrichedPt5_TuneCP5_13p6TeV_pythia8",
     ],
+    "Ph+jets": [
+        "GJ-4Jets_HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_HT-400to600_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_HT-40to70_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_HT-600_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_HT-70to100_TuneCP5_13p6TeV_madgraphMLM-pythia8",        
+        "GJ-4Jets_dRGJ-0p25_PTG-10to100_HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-10to100_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-10to100_HT-40to100_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-10to100_HT-1000_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-10to100_HT-400to600_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-10to100_HT-600to1000_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-100to200_HT-1000_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-100to200_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-100to200_HT-400to600_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-100to200_HT-40to200_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-100to200_HT-600to1000_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-200_HT-1000_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-200_HT-400to600_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-200_HT-40to400_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+        "GJ-4Jets_dRGJ-0p25_PTG-200_HT-600to1000_TuneCP5_13p6TeV_madgraphMLM-pythia8",        
+    ]
 }
 ### copy functions coffea.hist.plotratio https://github.com/CoffeaTeam/coffea/blob/master/coffea/hist/plot.py to boost-hist
 ################
@@ -489,7 +517,9 @@ def plotratio(
     else:
         sumw_num, sumw2_num = num.values(), num.variances()
         sumw_denom, sumw2_denom = denom.values(), denom.variances()
+
     rsumw = sumw_num / sumw_denom
+
     if unc == "clopper-pearson":
         rsumw_err = np.abs(clopper_pearson_interval(sumw_num, sumw_denom) - rsumw)
     elif unc == "poisson-ratio":
