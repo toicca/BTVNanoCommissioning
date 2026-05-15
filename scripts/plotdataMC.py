@@ -29,6 +29,7 @@ from BTVNanoCommissioning.utils.plot_utils import (
 bininfo = get_definitions()
 SV_bininfo = get_definitions(include_definitions=["SV"])
 
+
 def get_parser():
     parser = argparse.ArgumentParser(description="Hist plotter for commissioning")
     parser.add_argument("--lumi", required=True, type=float, help="Luminosity in /pb")
@@ -75,7 +76,10 @@ def get_parser():
         "--SF", action="store_true", default=False, help="Make with SF comparisons"
     )
     parser.add_argument(
-        "--xrange", type=str, default=None, help="Custom x-range. Usage: --xrange xmin,xmax"
+        "--xrange",
+        type=str,
+        default=None,
+        help="Custom x-range. Usage: --xrange xmin,xmax",
     )
     parser.add_argument(
         "--ratio-range",
@@ -114,9 +118,14 @@ def get_parser():
         default="png,pdf",
         help="File format to save the plots, split by ,. Default is png and pdf",
     )
+    parser.add_argument(
+        "--CMS-label",
+        type=str,
+        default="Preliminary",
+        help="CMS label to put on the plot, default is Preliminary",
+    )
 
     return parser.parse_args()
-
 
 
 def main(args=args):
@@ -129,7 +138,7 @@ def main(args=args):
             print(f"{inp} does not exist!")
             return 1
 
-        files = glob.glob(inp) 
+        files = glob.glob(inp)
 
         for i in files:
             if ".coffea" not in i:
@@ -173,7 +182,6 @@ def main(args=args):
     }
     print(collated.keys())
 
-    
     # Which flavor to split, default is udsg+pu+c+b, for QG workflow, split to ud+s+c+b+g+other
     flav_set = ["udsg", "pu", "c", "b"]
     if "qg" in args.phase.lower():
@@ -181,15 +189,15 @@ def main(args=args):
 
     ### input text settings
     phase_label_map = {
-        "Wc":     "W+c",
-        "DY":     "DY+jets",
-        "QCD":    "QCD",
+        "Wc": "W+c",
+        "DY": "DY+jets",
+        "QCD": "QCD",
         "semilep": r"t$\bar{t}$ semileptonic",
-        "dilep":  r"t$\bar{t}$ dileptonic",
-        "dijet":  "QCD dijet",
+        "dilep": r"t$\bar{t}$ dileptonic",
+        "dijet": "QCD dijet",
     }
     phase_nj_map = {"semilep": 4, "dilep": 2}
-    osss_suffix  = {1: " OS", -1: " SS"}
+    osss_suffix = {1: " OS", -1: " SS"}
 
     input_txt = next(
         (label for key, label in phase_label_map.items() if key in args.phase),
@@ -229,10 +237,10 @@ def main(args=args):
     else:
         all_vars = collated["mc"].keys()
         var_set = [
-            var for pattern in args.variable.split(",")
+            var
+            for pattern in args.variable.split(",")
             for var in fnmatch.filter(all_vars, pattern)
         ]
-
 
     for index, discr in enumerate(var_set):
         # Skip non-histogram objects
@@ -244,16 +252,12 @@ def main(args=args):
             return 1
 
         # Skip missing and empty hists
-        if (
-            discr not in collated["mc"].keys()
-            or discr not in collated["data"].keys()
-        ):
+        if discr not in collated["mc"].keys() or discr not in collated["data"].keys():
             print(discr, "not in files, skipping")
             continue
-        elif (
-            (collated["mc"][discr].values() == 0).all()
-            or (collated["data"][discr].values() == 0).all()
-        ):
+        elif (collated["mc"][discr].values() == 0).all() or (
+            collated["data"][discr].values() == 0
+        ).all():
             print(discr, "is empty, skipping")
             continue
 
@@ -372,7 +376,12 @@ def main(args=args):
         )
         fig.subplots_adjust(hspace=0.06, top=0.92, bottom=0.1, right=0.97)
         hep.cms.label(
-            "Preliminary", data=True, lumi=args.lumi / 1000.0, com=args.com, loc=0, ax=ax
+            args.CMS_label,
+            data=True,
+            lumi=args.lumi / 1000.0,
+            com=args.com,
+            loc=0,
+            ax=ax,
         )
 
         ## w/ & w/o btag SF
@@ -571,7 +580,11 @@ def main(args=args):
             hmc = collated["mc"][discr][allaxis]
             MCerrorband(hmc, ax=ax)
             rax = plotratio(
-                collated["data"][discr][allaxis], hmc, ax=rax, flow=args.flow, xerr=do_xerr
+                collated["data"][discr][allaxis],
+                hmc,
+                ax=rax,
+                flow=args.flow,
+                xerr=do_xerr,
             )
         else:
             hmc = collated["mc"][discr][allaxis]
@@ -588,7 +601,9 @@ def main(args=args):
                     yerr=True,
                     ax=ax,
                     color=[
-                        color_map[s] for s in collated.keys() if s != "mc" and s != "data"
+                        color_map[s]
+                        for s in collated.keys()
+                        if s != "mc" and s != "data"
                     ],
                     flow=args.flow,
                 )
@@ -614,7 +629,11 @@ def main(args=args):
             )
             MCerrorband(hmc, ax=ax, flow=args.flow)  # stat. unc. errorband
             rax = plotratio(
-                collated["data"][discr][allaxis], hmc, ax=rax, flow=args.flow, xerr=do_xerr
+                collated["data"][discr][allaxis],
+                hmc,
+                ax=rax,
+                flow=args.flow,
+                xerr=do_xerr,
             )
 
         ax.set_xlabel(None)
@@ -622,12 +641,14 @@ def main(args=args):
         rax.set_ylabel("Data/MC")
         ax.ticklabel_format(style="sci", scilimits=(-3, 3))
         ax.get_yaxis().get_offset_text().set_position((-0.065, 1.05))
+
         # FIXME: add wildcard option for xlabel
         xlabel = (
             args.xlabel
             if args.xlabel is not None
             else collated["data"][discr].axes[-1].label
         )  # Use label from stored hists
+
         ## FIXME: Set temporary fix for the x-axis
         if args.xlabel is not None:
             args.xlabel.split(",")[index]
@@ -653,12 +674,19 @@ def main(args=args):
             )
         else:
             xlabel = axes_name(discr)
+
         rax.set_xlabel(xlabel)
+
         if "sample" in args.split:
             ax.legend(ncols=2, prop={"size": 16})
         else:
-            ax.legend(ncols=(2 if len(flav_set) > 3 else 1),)
-        rax.set_ylim(float(args.ratio_range.split(",")[0]), float(args.ratio_range.split(",")[1]))
+            ax.legend(
+                ncols=(2 if len(flav_set) > 3 else 1),
+            )
+
+        rax.set_ylim(
+            float(args.ratio_range.split(",")[0]), float(args.ratio_range.split(",")[1])
+        )
         ax.set_ylim(bottom=0.0)
 
         rax.autoscale(True, axis="x", tight=True)
@@ -666,17 +694,23 @@ def main(args=args):
             collated["data"][discr][allaxis] + collated["mc"][discr][allaxis],
             flow=args.flow,
         )
+
         if args.xrange is not None:
-            xmin, xmax = float(args.xrange.split(",")[0]), float(args.xrange.split(",")[1])
+            xmin, xmax = float(args.xrange.split(",")[0]), float(
+                args.xrange.split(",")[1]
+            )
+
         rax.set_xlim(xmin, xmax)
         at = AnchoredText(input_txt + "\n" + args.ext, loc=2, frameon=False)
         ax.add_artist(at)
+
         scale = ""
         if args.norm:
             scale = "_norm"
         name = "all"
         if args.split == "sample":
             name += "_sample"
+
         try:
             hep.mpl_magic(ax=ax)
         except RuntimeError as e:
@@ -688,6 +722,7 @@ def main(args=args):
             except Exception as e2:
                 print(f"Still failed: {e2}")
                 # Continue anyway - the plot will still be usable
+
         if args.log:
             name += "_log"
             ax.set_yscale("log")
@@ -697,7 +732,9 @@ def main(args=args):
         # Save the plots
         for filetype in args.save_as.split(","):
             if filetype not in ["png", "pdf"]:
-                print(f"Unsupported file type: {filetype}. Only 'png' and 'pdf' are supported.")
+                print(
+                    f"Unsupported file type: {filetype}. Only 'png' and 'pdf' are supported."
+                )
                 continue
             print(
                 "creating:",
@@ -708,6 +745,7 @@ def main(args=args):
             )
 
         plt.close(fig)
+
 
 if __name__ == "__main__":
     args = get_parser()
