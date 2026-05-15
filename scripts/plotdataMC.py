@@ -1,12 +1,11 @@
 import numpy as np
 import fnmatch
-import argparse, os, arrow, glob, re, sys
+import argparse, os, glob, sys
 import matplotlib.pyplot as plt
 import mplhep as hep
 import hist
 from coffea.util import load
 from matplotlib.offsetbox import AnchoredText
-import gc
 
 plt.style.use(hep.style.ROOT)
 
