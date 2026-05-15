@@ -127,7 +127,7 @@ def get_parser():
     return parser.parse_args()
 
 
-def main(args=args):
+def main(args):
     inputs = args.input.split(",")
 
     # Load the inputs
