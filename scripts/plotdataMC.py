@@ -1,4 +1,5 @@
 import numpy as np
+import fnmatch
 import argparse, os, arrow, glob, re, sys
 import matplotlib.pyplot as plt
 import mplhep as hep
@@ -222,50 +223,38 @@ def main(args=args):
     if "ctag" in args.phase and "DY" not in args.phase:
         input_txt += "\nw/ soft-$\mu$"
 
+    # Find the variables to plot
     if args.variable == "all":
         var_set = [var for var in collated["mc"].keys()]
-    elif "*" in args.variable:
-        if args.variable.count("*") > 1:
-            var_set = [
-                var
-                for var in collated["mc"].keys()
-                if args.variable.replace("*", "") in var
-            ]
-        elif args.variable.startswith("*") or args.variable.endswith("*"):
-            var_set = [
-                var
-                for var in collated["mc"].keys()
-                if var.startswith(args.variable.replace("*", ""))
-                or var.endswith(args.variable.replace("*", ""))
-            ]
-        else:
-            var_set = [
-                var
-                for var in collated["mc"].keys()
-                if re.match(
-                    f"^{args.variable.split('*')[0]}.*{args.variable.split('*')[1]}$", var
-                )
-                != None
-            ]
     else:
-        var_set = args.variable.split(",")
+        all_vars = collated["mc"].keys()
+        var_set = [
+            var for pattern in args.variable.split(",")
+            for var in fnmatch.filter(all_vars, pattern)
+        ]
 
 
     for index, discr in enumerate(var_set):
+        # Skip non-histogram objects
         try:
             if not isinstance(collated["mc"][discr], hist.hist.Hist):
                 continue
         except:
             print(f"{discr} not found. Variable must be in", collated["mc"].keys())
             return 1
-        ## remove empty
+
+        # Skip missing and empty hists
         if (
             discr not in collated["mc"].keys()
             or discr not in collated["data"].keys()
-            or (collated["mc"][discr].values() == 0).all()
+        ):
+            print(discr, "not in files, skipping")
+            continue
+        elif (
+            (collated["mc"][discr].values() == 0).all()
             or (collated["data"][discr].values() == 0).all()
         ):
-            print(discr, "not in file or empty")
+            print(discr, "is empty, skipping")
             continue
 
         ## axis info
@@ -283,10 +272,12 @@ def main(args=args):
                 allaxis["osss"] = 0  # opposite sign
             elif args.splitOSSS == -1:
                 allaxis["osss"] = 1  # same sign
+
         if "flav" in collated["mc"][discr].axes.name:
             allaxis["flav"] = sum
             SF_axis = allaxis
             noSF_axis = allaxis
+
         if "syst" in collated["mc"][discr].axes.name:
             # Get list of available systematics
             systlist = [
