@@ -37,7 +37,9 @@ bininfo = get_definitions()
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(description="make comparison for different campaigns")
+    parser = argparse.ArgumentParser(
+        description="make comparison for different campaigns"
+    )
     parser.add_argument(
         "-p",
         "--phase",
@@ -55,7 +57,11 @@ def get_parser():
     )
     parser.add_argument("-r", "--ref", required=True, help="referance dataset")
     parser.add_argument(
-        "-c", "--compared", required=True, type=str, help="compared datasets, splitted by ,"
+        "-c",
+        "--compared",
+        required=True,
+        type=str,
+        help="compared datasets, splitted by ,",
     )
     parser.add_argument(
         "--sepflav", action="store_true", help="seperate flavour(b/c/light)"
@@ -199,12 +205,12 @@ def main(args):
 
     ### input text settings
     phase_label_map = {
-        "Wc":     "W+c",
-        "DY":     "DY+jets",
-        "QCD":    "QCD",
+        "Wc": "W+c",
+        "DY": "DY+jets",
+        "QCD": "QCD",
         "semilep": r"t$\bar{t}$ semileptonic",
-        "dilep":  r"t$\bar{t}$ dileptonic",
-        "dijet":  "QCD dijet",
+        "dilep": r"t$\bar{t}$ dileptonic",
+        "dijet": "QCD dijet",
     }
     osss_suffix = {1: " OS", -1: " SS"}
 
@@ -290,7 +296,9 @@ def main(args):
                 rebin = np.array([float(i) for i in args.autorebin.split(",")])
                 do_xerr = True
             collated[args.ref][discr] = rebin_hist(
-                collated[args.ref][discr], collated[args.ref][discr].axes[-1].name, rebin
+                collated[args.ref][discr],
+                collated[args.ref][discr].axes[-1].name,
+                rebin,
             )
             for c in args.compared.split(","):
                 collated[c][discr] = rebin_hist(
@@ -412,7 +420,8 @@ def main(args):
                 # comparison splitted by flavor
                 rax = plotratio(
                     collated[c][discr][laxis] + collated[c][discr][puaxis],
-                    collated[args.ref][discr][laxis] + collated[args.ref][discr][puaxis],
+                    collated[args.ref][discr][laxis]
+                    + collated[args.ref][discr][puaxis],
                     ax=rax,
                     denom_fill_opts=None,
                     error_opts={"color": "b", "marker": markers[mindex + 1]},
@@ -468,7 +477,11 @@ def main(args):
 
         else:
             fig, ((ax), (rax)) = plt.subplots(
-                2, 1, figsize=(12, 12), gridspec_kw={"height_ratios": (3, 1)}, sharex=True
+                2,
+                1,
+                figsize=(12, 12),
+                gridspec_kw={"height_ratios": (3, 1)},
+                sharex=True,
             )
             fig.subplots_adjust(hspace=0.06, top=0.92, bottom=0.1, right=0.97)
             hep.cms.label(label, com=args.com, data=True, loc=0, ax=ax)

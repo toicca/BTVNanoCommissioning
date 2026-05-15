@@ -421,7 +421,7 @@ def main(args):
                 yerr=True,
                 ax=ax,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
                 **color_config,
             )
             hep.histplot(
@@ -432,7 +432,7 @@ def main(args):
                 yerr=True,
                 ax=ax,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
             )
             hep.histplot(
                 collated["data"][discr][noSF_axis],
@@ -443,7 +443,7 @@ def main(args):
                 ax=ax,
                 xerr=do_xerr,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
             )
             hmc = collated["mc"][discr][SF_axis]
             MCerrorband(hmc, ax=ax, flow=args.flow)  # stat. unc. errorband
@@ -513,7 +513,7 @@ def main(args):
                 yerr=True,
                 ax=ax,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
                 **color_config,
             )
             hep.histplot(
@@ -525,7 +525,7 @@ def main(args):
                 ax=ax,
                 xerr=do_xerr,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
             )
             hmc = collated["mc"][discr][noSF_axis]
             MCerrorband(hmc, ax=ax, flow=args.flow)  # stat. unc. errorband
@@ -569,7 +569,7 @@ def main(args):
                 yerr=True,
                 ax=ax,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
                 **color_config,
             )
             hep.histplot(
@@ -581,7 +581,7 @@ def main(args):
                 ax=ax,
                 xerr=do_xerr,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
             )
             hmc = collated["mc"][discr][allaxis]
             MCerrorband(hmc, ax=ax)
@@ -612,7 +612,7 @@ def main(args):
                         if s != "mc" and s != "data"
                     ],
                     flow=args.flow,
-                    sort="y", # sort by yield
+                    sort="y",  # sort by yield
                 )
             else:
                 hep.histplot(
@@ -623,7 +623,7 @@ def main(args):
                     yerr=True,
                     ax=ax,
                     flow=args.flow,
-                    sort="y", # sort by yield
+                    sort="y",  # sort by yield
                 )
             hep.histplot(
                 collated["data"][discr][allaxis],
@@ -634,7 +634,7 @@ def main(args):
                 ax=ax,
                 xerr=do_xerr,
                 flow=args.flow,
-                sort="y", # sort by yield
+                sort="y",  # sort by yield
             )
             MCerrorband(hmc, ax=ax, flow=args.flow)  # stat. unc. errorband
             rax = plotratio(

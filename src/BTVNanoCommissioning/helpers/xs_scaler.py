@@ -37,18 +37,18 @@ def scaleSumW(output, lumi, syst_shapes=True):
     # Maps output histogram suffix -> sumw accumulator key used for normalisation.
     # When syst_shapes=False every variation is normalised with the nominal sumw instead.
     syst_sumw_map = {
-        "PDF_weightUp":     "PDF_sumwUp",
-        "PDF_weightDown":   "PDF_sumwDown",
-        "aS_weightUp":      "aS_sumwUp",
-        "aS_weightDown":    "aS_sumwDown",
-        "scalevar_muRUp":   "muR_sumwUp",
+        "PDF_weightUp": "PDF_sumwUp",
+        "PDF_weightDown": "PDF_sumwDown",
+        "aS_weightUp": "aS_sumwUp",
+        "aS_weightDown": "aS_sumwDown",
+        "scalevar_muRUp": "muR_sumwUp",
         "scalevar_muRDown": "muR_sumwDown",
-        "scalevar_muFUp":   "muF_sumwUp",
+        "scalevar_muFUp": "muF_sumwUp",
         "scalevar_muFDown": "muF_sumwDown",
-        "UEPS_ISRUp":       "ISR_sumwUp",
-        "UEPS_ISRDown":     "ISR_sumwDown",
-        "UEPS_FSRUp":       "FSR_sumwUp",
-        "UEPS_FSRDown":     "FSR_sumwDown",
+        "UEPS_ISRUp": "ISR_sumwUp",
+        "UEPS_ISRDown": "ISR_sumwDown",
+        "UEPS_FSRUp": "FSR_sumwUp",
+        "UEPS_FSRDown": "FSR_sumwDown",
     }
 
     merged_output = merge_output(output)
@@ -71,7 +71,9 @@ def scaleSumW(output, lumi, syst_shapes=True):
                     for var in ["Up", "Down"]:
                         key_reweight = f"{syst}_sumw{var}"
                         if key_reweight in merged_output[sample].keys():
-                            scaled[sample][key_reweight] = merged_output[sample][key_reweight]
+                            scaled[sample][key_reweight] = merged_output[sample][
+                                key_reweight
+                            ]
                         else:
                             scaled[sample][key_reweight] = nominal_sumw
                             print(f"WARNING: {key_reweight} not found!")
