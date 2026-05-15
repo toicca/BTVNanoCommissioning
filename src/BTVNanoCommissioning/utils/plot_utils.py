@@ -31,6 +31,7 @@ color_map = {
     "s": "#209A24",  # green
     "g": "#7a21dd",  # purple
     "pu": "#717581",  # grey
+    "other": "#717581",  # grey
     "c": "#ed1e02",  # red
     "b": "#fcb302",  # yellow
 }
