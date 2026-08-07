@@ -237,19 +237,14 @@ class NanoProcessor(processor.ProcessorABC):
             self.model_base = model_base
         else:
             self.model_base = None
-        username = os.environ.get("USER")
-        cern_eos_base = f"/eos/user/{username[0]}/{username}"
-        desy_dust_base = f"/data/dust/user/{username}"
-        if os.path.exists(cern_eos_base):
-            base_path = cern_eos_base
-        elif os.path.exists(desy_dust_base):
-            base_path = desy_dust_base
-        else:
-            base_path = os.getcwd()
-        self.out_dir_base = os.path.join(
-            base_path,
-            "btv/phys_btag/sfb-ttkinfit/arrays" + ("_bdt" if self.model_base else ""),
-        )  # noqa
+        ## By default arrays go where every other workflow puts them: `name` is
+        ## already the destination runner.py built from --outputdir, and on
+        ## condor that directory is what gets transferred back. Auto-detecting a
+        ## personal /eos or /data/dust area instead made --outputdir a no-op and
+        ## left the root files behind on batch nodes that have neither.
+        ## Set BTV_ARRAY_OUT_DIR to prepend a fixed base again if you want it.
+        out_dir_base = os.environ.get("BTV_ARRAY_OUT_DIR", "")
+        self.out_dir_base = out_dir_base.rstrip("/") + "/" if out_dir_base else ""
 
         ## Load corrections
         self.SF_map = load_SF(self._year, self._campaign)
@@ -422,6 +417,7 @@ class NanoProcessor(processor.ProcessorABC):
                     ["nominal"],
                     dataset,
                     isRealData,
+                    self.out_dir_base,
                     empty=True,
                 )
             return {dataset: output}
@@ -621,7 +617,7 @@ class NanoProcessor(processor.ProcessorABC):
                 systematics,
                 dataset,
                 isRealData,
-                self.out_dir_base + "/" if self.out_dir_base else "",
+                self.out_dir_base,
                 kinOnly=[],
                 othersData=[],
             )

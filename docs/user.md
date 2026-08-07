@@ -205,7 +205,7 @@ python runner.py --wf {wf} --json metadata/{args.campaign}/{types}_{args.campaig
 - In case just to test your program, you can limit only one file with one chunk using iterative executor to avoid overwriting error message by `--max 1 --limit 1 --executor iterative`
 - In case you only want to run particular sample in your json `--only $dataset_name`, i.e. `--only TT*` or `--only MuonEG_Run2023A`
 - Change the numbers of scale job by `-s $NJOB`
-- Store the arrays by setting the flag `--isArray`
+- Store the arrays by setting the flag `--isArray`. They land in `arrays_$OUTPUT_NAME/`, under `--outputdir` if you give one. `sf_ttdilep_kin` also honours the `BTV_ARRAY_OUT_DIR` environment variable, which prepends a fixed base to that path -- leave it unset unless you want the arrays outside the normal output tree, since condor only transfers back what is in the job directory.
 - Modifying chunk size in case the jobs is to big `--chunk $N_EVENTS_PER_CHUNK`
 - Sometimes the global redirector is insufficient, you can increase the numbers of retries (only in parsl/dask) `--retries 30`, or skip the files `--skipbadfiles` and later reprocess the missing info by create the json with skipped files. Methods to create the json files discussed in the next part.
 :::
