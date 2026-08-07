@@ -108,20 +108,53 @@ fi
 # Launch
 echo "Now launching: python runner.py $OPTS"
 python runner.py $OPTS
+RUNNER_RC=$?
+if [ $RUNNER_RC -ne 0 ]; then
+    echo "ERROR: runner.py exited with code $RUNNER_RC, skipping output transfer" >&2
+    exit $RUNNER_RC
+fi
 
 # Transfer output
-if [[ ${ARGS[outputDir]} == root://* ]]; then
+## Reconstruct the directory names runner.py used rather than globbing them.
+## `hists_*` only matched the default `hists.coffea` output name, and `arrays_*`
+## happily matched the empty directory runner.py pre-creates for --isArray, so a
+## workflow that writes its root files elsewhere looked like a successful job.
+OUTNAME=${ARGS[output]//.coffea/_$JOBID.coffea}
+HISTDIR=${OUTNAME%%.*}    # hists_<JOBID>
+ARRAYDIR=arrays_$HISTDIR  # arrays_hists_<JOBID>
 
-    xrdcp --silent -p -f -r hists_* ${ARGS[outputDir]}/
-    if [[ "$OPTS" == *"isArray"* ]]; then
-	xrdcp --silent -p -f -r arrays_* ${ARGS[outputDir]}/
+transfer() {
+    local src=$1
+    if [ ! -d "$src" ]; then
+        echo "ERROR: expected output directory $src does not exist" >&2
+        return 1
     fi
-else
-    mkdir -p ${ARGS[outputDir]}
-    cp -p -f -r hists_* ${ARGS[outputDir]}/
-    if [[ "$OPTS" == *"isArray"* ]]; then
-	cp -p -f -r arrays_* ${ARGS[outputDir]}/
+    if [[ ${ARGS[outputDir]} == root://* ]]; then
+        xrdcp --silent -p -f -r "$src" ${ARGS[outputDir]}/
+    else
+        mkdir -p ${ARGS[outputDir]}
+        ## no -p: preserving ownership/timestamps fails on EOS-backed mounts
+        cp -f -r "$src" ${ARGS[outputDir]}/
     fi
+}
+
+if [ "${ARGS[noHist]}" != true ]; then
+    transfer "$HISTDIR" || exit 1
+fi
+
+if [ "${ARGS[isArray]}" == true ]; then
+    ## runner.py always creates $ARRAYDIR up front, so an empty one means the
+    ## workflow wrote its root files somewhere the transfer cannot see. Those
+    ## files die with the condor sandbox, so fail instead of reporting success.
+    ## Known offenders: BTA_producer and BTA_ttbar_producer write to
+    ## ./<dataset>[_<shift>]/, sf_ttdilep_kin writes to its own out_dir_base.
+    if [ -z "$(ls -A "$ARRAYDIR" 2>/dev/null)" ]; then
+        echo "ERROR: $ARRAYDIR is empty. This workflow does not write arrays through" >&2
+        echo "       utils/array_writer.py, so its root files cannot be transferred." >&2
+        ls -lah . >&2
+        exit 1
+    fi
+    transfer "$ARRAYDIR" || exit 1
 fi
 
 ### one can also consider origanizing the root files in the subdirectory structure ###
