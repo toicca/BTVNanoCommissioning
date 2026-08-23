@@ -27,18 +27,41 @@ from BTVNanoCommissioning.helpers.update_branch import missing_branch
 from BTVNanoCommissioning.utils.histogramming.histogrammer import (
     histogrammer,
 )
-from BTVNanoCommissioning.utils.histogramming.histograms.qgtag import qg_writer
+from BTVNanoCommissioning.utils.histogramming.histograms.qgtag import (
+    qg_writer,
+    photondijet_writer,
+)
 from BTVNanoCommissioning.utils.array_writer import array_writer
 from BTVNanoCommissioning.utils.selection import (
     HLT_helper,
     jet_id,
-    mu_idiso,
-    ele_cuttightid,
     MET_filters,
 )
 
+# Quark-enriched working point on eta_gamma*eta_j1 + dR_gamma,j2. Both terms are
+# smaller for quark probes (figures 9 and 10 of arXiv:1104.1175), so quark-like
+# is the *low* side. The value is a starting point read off those figures; the
+# discriminant is stored per event, so tighter points can be chosen offline.
+QUARK_DISC_CUT = 2.0
+
 
 class NanoProcessor(processor.ProcessorABC):
+    """Quark-enriched photon+2jet selection.
+
+    Follows Gallicchio & Schwartz, JHEP 10 (2011) 103 [arXiv:1104.1175]. Where
+    the `QG_photonjet` workflow is their gamma+1jet sample - whose quark purity
+    saturates around 88% because a 2-body final state leaves no kinematic
+    handles - this is their gamma+2jet sample: the *softer* jet is the probe,
+    and the single variable
+
+        disc = eta_gamma * eta_j1 + dR(gamma, j2)
+
+    recovers essentially the full 9-input BDT performance (their figure 11).
+    Quark-like probes sit at low values: the photon is collinear with a quark
+    probe (the q -> q gamma singularity, there is no g -> g gamma vertex), and
+    the photon and the harder jet are widely separated in eta.
+    """
+
     def __init__(
         self,
         year="2022",
@@ -49,7 +72,6 @@ class NanoProcessor(processor.ProcessorABC):
         noHist=False,
         chunksize=75000,
         selectionModifier="",
-        ttbar_reweights="none",
     ):
         self._year = year
         self._campaign = campaign
@@ -59,7 +81,6 @@ class NanoProcessor(processor.ProcessorABC):
         self.noHist = noHist
         self.lumiMask = load_lumi(self._campaign)
         self.chunksize = chunksize
-        self.ttbar_reweights = ttbar_reweights
         ## Load corrections
         self.SF_map = load_SF(self._year, self._campaign)
         self.selectionModifier = selectionModifier
@@ -84,6 +105,18 @@ class NanoProcessor(processor.ProcessorABC):
         dataset = events.metadata["dataset"]
         isRealData = not hasattr(events, "genWeight")
 
+        # "softprobe": drop the paper's requirement that both jets share the
+        # photon pt scale, keeping a softer (and much more abundant) probe.
+        # "quark": cut on the discriminant for a quark-enriched sample.
+        modifiers = [m for m in self.selectionModifier.split("_") if m]
+        for m in modifiers:
+            if m not in ["softprobe", "quark"]:
+                raise ValueError(
+                    self.selectionModifier, "is not a valid selection modifier."
+                )
+        common_ptscale = "softprobe" not in modifiers
+        quark_enriched = "quark" in modifiers
+
         ####################
         #    Selections    #
         ####################
@@ -92,7 +125,7 @@ class NanoProcessor(processor.ProcessorABC):
         if isRealData:
             req_lumi = self.lumiMask(events.run, events.luminosityBlock)
 
-        ## HLT
+        ## HLT - same photon menu as the gamma+1jet workflow
         if self._year == "2022" or self._year == "2023":
             triggers = {
                 "Photon20_HoverELoose": [20, 30],
@@ -120,13 +153,18 @@ class NanoProcessor(processor.ProcessorABC):
                 "Photon200": [200, 9999],
             }
         else:
-            raise ValueError(self._year, "is not a valid selection modifier.")
+            raise ValueError(self._year, "is not a valid year.")
+
+        # Sort the jets by pt (the corrections applied above can reorder them)
+        events["Jet"] = events.Jet[ak.argsort(events.Jet.pt, axis=1, ascending=False)]
 
         req_metfilter = MET_filters(events, self._campaign)
 
         ##### Add some selections
         ## Jet cuts
-        jet_sel = jet_id(events, self._campaign, max_eta=5.0, min_pt=20)
+        # |eta| < 2.5, the acceptance of the paper: the discriminant is built out
+        # of rapidities, and the flavour of an HF jet is not usable as a probe.
+        jet_sel = jet_id(events, self._campaign, max_eta=2.5, min_pt=20)
 
         if self._year == "2016":
             jet_puid = events.Jet.puId >= 1
@@ -148,11 +186,11 @@ class NanoProcessor(processor.ProcessorABC):
 
         # Index with the selection rather than ak.mask: masking leaves the failing
         # candidates in place as None, so slot 0 remains the leading *unselected*
-        # candidate. The photon is itself clustered as the leading jet in ~86% of
-        # gamma+jet events, so the cuts below were being evaluated on that
-        # photon-jet, which then dropped the event via None propagation.
+        # candidate and the event is then dropped by None propagation instead of
+        # falling back on the leading selected candidate.
         event_ph = ak.pad_none(events.Photon[photon_sel], 1)
-        event_jet = ak.pad_none(events.Jet[jet_sel], 1)
+        event_jet = ak.pad_none(events.Jet[jet_sel], 3)
+        njet = ak.count(event_jet.pt, axis=1)
 
         # Validate the paths against the sample (raises if none of them exist).
         # The returned OR is unused: each path is pt-binned individually below.
@@ -173,28 +211,87 @@ class NanoProcessor(processor.ProcessorABC):
             )
 
         req_trig = np.zeros(len(events), dtype="bool")
-        for trg_pass in trig_pass.values():
-            req_trig = req_trig | trg_pass
+        # The pt scale of the event is set by the photon trigger bin it falls in;
+        # the paper applies its pt cut to *all* jets at that same scale.
+        ptmin_ev = np.zeros(len(events))
+        for trg, passed in trig_pass.items():
+            req_trig = req_trig | passed
+            ptmin_ev = np.where(
+                ak.to_numpy(passed) & (ptmin_ev == 0), triggers[trg][0], ptmin_ev
+            )
+
+        def _req(mask):
+            # PackedSelection needs a plain boolean array: the padded object slots
+            # make every cut option-typed, and a missing object must fail the cut.
+            return ak.to_numpy(ak.fill_none(mask, False))
+
+        photon, j1, j2, j3 = (
+            event_ph[:, 0],
+            event_jet[:, 0],
+            event_jet[:, 1],
+            event_jet[:, 2],
+        )
+
+        # eta_gamma*eta_j1 + dR(gamma, j2): the composite variable of the paper.
+        # Note both terms use the *harder* jet for the eta product and the
+        # *softer* (probe) jet for the distance to the photon.
+        etaprod = photon.eta * j1.eta
+        drgj2 = photon.delta_r(j2)
+        disc = etaprod + drgj2
 
         # Build selections with PackedSelection for cleaner tracking and cutflow
         selections = PackedSelection()
-        selections.add("lumi", req_lumi)
-        selections.add("metfilter", req_metfilter)
-        selections.add("photon", ak.count(event_ph.pt, axis=1) > 0)
-        selections.add("jet", ak.count(event_jet.pt, axis=1) > 0)
-        selections.add("dphi", np.abs(event_jet[:, 0].delta_phi(event_ph[:, 0])) > 2.7)
+        selections.add("lumi", _req(req_lumi))
+        selections.add("metfilter", _req(req_metfilter))
+        selections.add("trigger", _req(req_trig))
+        selections.add("photon", _req(ak.count(event_ph.pt, axis=1) > 0))
+        selections.add("jets", _req(njet > 1))
+        # dR > 1.0 between the two jets and dR > 0.5 between the photon and each
+        # of them (the paper's generation cuts): well separated objects, and no
+        # photon/jet overlap for either the probe or the eta-product jet.
+        selections.add("drjj", _req(j1.delta_r(j2) > 1.0))
         selections.add(
-            "scale", np.abs(1.0 - event_jet[:, 0].pt / event_ph[:, 0].pt) < 0.3
+            "drgj", _req((photon.delta_r(j1) > 0.5) & (photon.delta_r(j2) > 0.5))
         )
-        selections.add("trigger", req_trig)
+        if common_ptscale:
+            # pt cut on *both* jets at the scale of the photon pt bin
+            selections.add("jetpt", _req((j1.pt >= ptmin_ev) & (j2.pt >= ptmin_ev)))
+        else:
+            selections.add("jetpt", _req(j2.pt >= 20))
+        # Exclusive 2-jet topology: any further jet must be soft compared with
+        # the two probing ones (same handle as the dijet workflow).
+        selections.add(
+            "excl2jet",
+            _req(
+                ak.where(
+                    njet > 2,
+                    j3.pt / (0.5 * (j1 + j2).pt) < 0.15,
+                    ak.ones_like(req_trig, dtype=bool),
+                )
+            ),
+        )
         if "GenVtx_z" in events.fields:
-            selections.add("vtx", np.abs(events.GenVtx_z - events.PV_z) < 0.2)
+            selections.add("vtx", _req(np.abs(events.GenVtx_z - events.PV_z) < 0.2))
         else:
             selections.add("vtx", ak.ones_like(events.run, dtype=bool))
+        if quark_enriched:
+            selections.add("quark_disc", _req(disc < QUARK_DISC_CUT))
 
-        event_level = selections.all(
-            "lumi", "metfilter", "photon", "jet", "dphi", "scale", "trigger", "vtx"
-        )
+        cuts = [
+            "lumi",
+            "metfilter",
+            "trigger",
+            "photon",
+            "jets",
+            "drjj",
+            "drgj",
+            "jetpt",
+            "excl2jet",
+            "vtx",
+        ]
+        if quark_enriched:
+            cuts.append("quark_disc")
+        event_level = selections.all(*cuts)
 
         ##<==== finish selection
 
@@ -209,11 +306,8 @@ class NanoProcessor(processor.ProcessorABC):
                 obj_list=[],
                 hist_collections=["qgtag"],
                 axes_collections=["qgtag"],
-                is_dijet=False,
+                is_photondijet=True,
             )
-
-        if shift_name is None:
-            output = dump_lumi(events[req_lumi], output)
 
         if shift_name is None:
             output["sumw"] = sumws["sumw"]
@@ -263,15 +357,28 @@ class NanoProcessor(processor.ProcessorABC):
         # Keep the structure of events and pruned the object size
         pruned_ev = events[event_level]
 
-        # Take the leading candidate from the *selected* collections, so the
-        # stored objects are the ones the cuts above were evaluated on.
+        # Built from the *selected* collections, so the stored objects are the
+        # ones the cuts above were evaluated on.
         pruned_sel_jet = event_jet[event_level]
         pruned_ev["Tag"] = event_ph[event_level][:, 0]
         pruned_ev["Tag", "pt"] = pruned_ev["Tag"].pt
         pruned_ev["Tag", "eta"] = pruned_ev["Tag"].eta
         pruned_ev["Tag", "phi"] = pruned_ev["Tag"].phi
-        pruned_ev["SelJet"] = pruned_sel_jet[:, 0]
+        pruned_ev["SelJet"] = pruned_sel_jet[:, :2]
+        pruned_ev["LeadJet"] = pruned_sel_jet[:, 0]
+        # j2, the softer of the two: the quark-enriched probe
+        pruned_ev["SoftJet"] = pruned_sel_jet[:, 1]
 
+        # Cross-object quantities have to be assigned explicitly on pruned_ev
+        pruned_ev["photondijet_etaprod"] = etaprod[event_level]
+        pruned_ev["photondijet_drgj2"] = drgj2[event_level]
+        # eta_gamma*eta_j1 + dR(gamma, j2)
+        pruned_ev["photondijet_disc"] = (
+            pruned_ev["photondijet_etaprod"] + pruned_ev["photondijet_drgj2"]
+        )
+        pruned_ev["photondijet_mass"] = (
+            pruned_sel_jet[:, 0] + pruned_sel_jet[:, 1] + pruned_ev["Tag"]
+        ).mass
         pruned_ev["njet"] = ak.count(pruned_sel_jet.pt, axis=1)
 
         ## <========= end: store custom objects
@@ -280,13 +387,7 @@ class NanoProcessor(processor.ProcessorABC):
         #     Output       #
         ####################
         # Configure SFs
-        weights = weight_manager(
-            pruned_ev,
-            self.SF_map,
-            self.isSyst,
-            ttbar_reweights=self.ttbar_reweights,
-            campaign=self._campaign,
-        )
+        weights = weight_manager(pruned_ev, self.SF_map, self.isSyst)
         if isRealData:
             if self._year == "2022":
                 run_num = "355374_362760"
@@ -297,7 +398,9 @@ class NanoProcessor(processor.ProcessorABC):
             elif self._year == "2025":
                 run_num = "391658_398860"
             else:
-                raise ValueError(self._year, "is not supported for prescale weights.")
+                raise NotImplementedError(
+                    f"Prescale weights not available for data in {self._year}."
+                )
 
             pruned_ev["psweight"] = np.zeros(len(pruned_ev))
             for trigger in trig_pass:
@@ -336,6 +439,9 @@ class NanoProcessor(processor.ProcessorABC):
             output = qg_writer(
                 pruned_ev, output, weights, systematics, self.isSyst, self.SF_map
             )
+            output = photondijet_writer(
+                pruned_ev, output, weights, systematics, self.isSyst
+            )
         # Output arrays
         if self.isArray:
             othersData = [
@@ -343,8 +449,6 @@ class NanoProcessor(processor.ProcessorABC):
                 "PV_npvs",
                 "PV_npvsGood",
                 "Rho_*",
-                "SoftMuon_dxySig",
-                "Muon_sip3d",
                 "run",
                 "luminosityBlock",
             ]
