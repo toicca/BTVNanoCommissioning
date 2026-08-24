@@ -204,55 +204,85 @@ plus `fname`/`run`/`lumi`/`sumw` (confirms `column_accumulator`/`set_accumulator
 - Fix #6 matters beyond this migration: with a non-zero index the old code would have silently
   produced *wrong* `Genpt` values instead of crashing.
 
-## 8c. P3 WORKFLOW SWEEP RESULTS (23 / 33 validated end-to-end)
+## 8c. P3 WORKFLOW SWEEP RESULTS (36 / 41 validated end-to-end)
 
-All runs: `--max 1 --limit 1` on Summer24 MC unless noted.
+All runs: `--max 1 --limit 1` on Summer24 MC unless noted. Env `btv_coffea_2026`
+(coffea 2026.7.0). The registry grew from 33 to 41 workflows with the
+`QG_photondijet*` / `QG_trijet*` additions.
 
-**PASS (23):** `QG_dijet` `QG_DY` `QG_photonjet` `QG_zerobias` `QG_pfjet`
-`ctag_Wc_sf` `ectag_Wc_sf` `ctag_Wc_noMuVeto_sf` `ctag_Wc_WP_sf` `ectag_Wc_WP_sf`
-`ctag_DY_sf` `ectag_DY_sf` `DY_sfl` `eDY_sfl` `ctag_ttsemilep_sf`
+**PASS (36).** Sweeps 1-2 (23): `QG_dijet` `QG_DY` `QG_photonjet` `QG_zerobias`
+`QG_pfjet` `ctag_Wc_sf` `ectag_Wc_sf` `ctag_Wc_noMuVeto_sf` `ctag_Wc_WP_sf`
+`ectag_Wc_WP_sf` `ctag_DY_sf` `ectag_DY_sf` `DY_sfl` `eDY_sfl` `ctag_ttsemilep_sf`
 `ectag_ttsemilep_sf` `ctag_ttsemilep_noMuVeto_sf` `ttsemilep_sf` `c_ttsemilep_sf`
-`sf_ttsemilep_tnp` `QCD_sf` `example` `validation`
+`sf_ttsemilep_tnp` `QCD_sf` `example` `validation`.
+Sweep 3 (13): `QG_photondijet` `QG_photondijet_quark` `QG_photondijet_softprobe`
+`QG_photondijet_softprobe_quark` `QG_trijet` `QG_trijet_gluon` `QG_trijet_dijetave`
+`QG_trijet_dijetave_gluon` `ttdilep_sf` `ctag_ttdilep_sf` `ectag_ttdilep_sf`
+`emctag_ttdilep_sf` `sf_ttdilep_kin`.
 
-**NOT VALIDATED (10):**
-- `ttdilep_sf`, `ctag_ttdilep_sf`, `ectag_ttdilep_sf`, `emctag_ttdilep_sf`,
-  `sf_ttdilep_kin` — **no ttdilep sample json exists**. Note the coordinate-representation
-  fix touched `ctag_dileptt_valid_sf.py` / `ctag_emdileptt_valid_sf.py`, so those two
-  fixes are code-verified only.
-- `BTA`, `BTA_addPFMuons`, `BTA_addAllTracks`, `BTA_ttbar` — blocked by the skip-guard
-  (see below). `BTA_helper.cumsum` is covered by an equivalence unit test only.
-- `QCD_smu_sf` — blocked by a latent bug needing a physics decision (see below).
+**FAIL / NOT VALIDATED (5):** `BTA`, `BTA_addPFMuons`, `BTA_addAllTracks`,
+`BTA_ttbar`, `QCD_smu_sf` — see the sweep-3 findings below.
 
-### Migration bugs found by the sweep
-| Fix | File(s) | Cause |
+Every sweep-3 PASS was checked for **non-vacuity**: the `.coffea` was reloaded with
+`coffea.util.load` and at least one `hist.Hist` verified to have a non-zero weighted sum
+(e.g. `emctag_ttdilep_sf` 36/58 histograms filled, `sumw` 4.05e6; the four
+`QG_photondijet*` 540/615 filled each). An exit code of 0 is not sufficient evidence —
+see the BTA finding.
+
+### Sweep 3 (Aug 2026): the 8 new QG variants + the 10 previously-blocked workflows
+
+Missing filesets were covered by reusing sibling JSONs rather than fetching from DAS:
+`QG_photondijet*` → `MC_Summer24_2024_QG_photonjet.json`, `QG_trijet*` →
+`MC_Summer24_2024_QG_dijet.json`, all ttdilep variants and `BTA_ttbar` →
+`MC_Summer24_2024_ctag_ttsemilep_sf.json` with `--only TTto2L2Nu…`.
+
+**The BTA skip-guard was bypassed without editing source**, by running with
+`--isSyst JP_MC`: `BTA_producer.py:66-72` prefixes `systematic/` to the `gfal-ls` path
+when `self.isSyst` is truthy, and that path does not exist centrally, so the early
+`return` does not fire.
+
+> **§8c's suspicion is now confirmed: the BTA CI gate was passing vacuously.** With the
+> guard bypassed, all three `BTA*` producers crash immediately under coffea 2026. The gate
+> had been green only because the processor returned before doing any work.
+
+### Migration bugs found by sweep 3
+| Fix | File | Cause |
 |---|---|---|
-| coordinate-representation conflict (6 sites) | `ctag_DY_valid_sf`, `DY_sfl`, `ctag_dileptt_valid_sf`, `ctag_emdileptt_valid_sf` | summed candidate (cartesian) + materialised polar fields; vector>=1.8 rejects |
-| mixed-type 4-vector add | `ctag_Wctt_valid_sf` | coffea 2026 drops `numpy.add` for mismatched behaviours |
-| `ak.layout` removal | `BTA_helper` | awkward 2 removed the low-level API |
+| `PtEtaPhiECandidate` missing `charge` | `utils/histogramming/histogrammer.py:419` | the `hl` ("harder lepton") record is zipped from pt/eta/phi/energy only; coffea 2026 validates a behaviour's required fields **at construction**, where 0.7 did not. Broke every workflow booking `hl`, i.e. `emctag_ttdilep_sf`. **Fixed** by zipping `charge` with the same `ak.where(_mu_is_harder, …)` as the other four fields; `emctag_ttdilep_sf` then passes with `hl_ptratio` filled. |
 
-Sweep 1 (9 workflows) found 1 migration bug; sweep 2 (13 workflows) found **0**. The
-migration itself looks converged; what the sweep now surfaces is pre-existing repo bugs.
+That is the **only** migration bug in 18 runs — consistent with sweep 2 (13 workflows,
+0 bugs). The migration itself is converged.
 
-### Pre-existing (NON-coffea) bugs surfaced — would fail identically on 0.7
-1. `validation.py`: `btag_wp_dict[self._campaign]` used the bare campaign, but that dict is
-   keyed `year_campaign` (`selection.py:375` even comments "correct, the format is
-   year_campaign"). 3 sites. **Fixed.**
-2. `validation.py`: `btag_wp(jet, self._campaign, ...)` omitted the `year` argument;
-   signature is `btag_wp(jets, year, campaign, tagger, borc, wp)`. 4 sites. **Fixed.**
-   Together, 1+2 mean the working-point block of `validation.py` had evidently never been
-   executed — despite `validation` being CI-gated.
-3. `QCD_soft_mu_validation.py`: selection requires **>=1** jet (`:114`) but `:177` indexes
-   `Jet[:, 1]` (the *second* jet), so any 1-jet event crashes. Confirmed **not** a sample
-   artefact — fails identically on the intended `btagmu` sample. **NOT fixed**: both
-   remedies change physics (padding to None alters the histogrammed `dr_mujet1`; requiring
-   >=2 jets changes acceptance). Needs an owner decision.
-4. `BTA_producer.py:66-72` returns early (`skip`) whenever its output already exists on
-   central EOS. Both samples in `metadata/test_bta_run3.json` are already produced, so the
-   BTA workflows execute nothing but `missing_branch`. **The BTA CI gate is very likely
-   passing vacuously** and would not have caught the `ak.layout` breakage.
+### Open failures from sweep 3 (all pre-existing, none coffea-related)
+1. **`BTA` / `BTA_addPFMuons` / `BTA_addAllTracks`** — `BTA_producer.py:553`:
+   `events.GenJet[genJetIdx]` raises
+   `IndexError: cannot slice ListArray … index out of range`. The code clamps an invalid
+   `genJetIdx` to `0`, which is still out of range for events with **zero** GenJets. This
+   is the identical defect to §8b fix #6 (`GenJet[0]`) at a second site, and exactly the
+   "unguarded minimum-object-count indexing" audit item. **NOT fixed** — the file was being
+   edited concurrently during the sweep.
+2. **`BTA_ttbar`** — `BTA_ttbar_producer.py:414`: `AttributeError: no field named 'jetId'`.
+   Confirmed by branch inspection that **NanoAODv15 dropped `Jet_jetId`** (the file exposes
+   no `Jet_*Id*` branch other than the index branches). This is a NanoAOD-version gap, not a
+   coffea one: `utils/selection.py:29` already guards the same access with
+   `has_jetId = hasattr(events.Jet, "jetId")`, and `BTA_ttbar_producer.py` never got the
+   equivalent guard. Note this workflow ran on a substituted Summer24 v15 fileset.
+3. **`QCD_smu_sf`** — `QCD_soft_mu_validation.py:179` still fails with
+   `IndexError … index 1`, i.e. the known `Jet[:, 1]` bug (selection requires >=1 jet, the
+   code indexes the second). **Status unchanged**, as expected; both remedies change physics
+   and it needs an owner decision.
 
-Unguarded minimum-object-count indexing (`GenJet[0]`, `Jet[:, 1]`) recurs in this codebase
-and is exactly what awkward 2's stricter bounds checking exposes — worth a dedicated audit.
+### Caveats on this table
+- The 23 workflows from sweeps 1-2 were **not** re-run in sweep 3, so they are not verified
+  against the later `PackedSelection` refactors (`8983295`, `9733c9c`, `240ba5f`), the new
+  awkward interfaces / explicit TTree writing (`6fa8cda`), or the array-writer output change
+  (`0e4b8ed`).
+- Sweep 3's first pass raced a concurrent edit adding `ttbar_reweights` to every processor
+  `__init__`; 6 workflows aborted with
+  `TypeError: NanoProcessor.__init__() got an unexpected keyword argument 'ttbar_reweights'`.
+  Those runs were repeated against the settled tree and are **not** counted as failures. If
+  that keyword is ever added to `runner.py` again ahead of the processors, every workflow
+  fails at construction — worth a CI smoke test that merely instantiates all 41 processors.
 
 ## 9. Phasing / PR breakdown
 - **P0 (done)**: pins + env + `import coffea` smoke test.
@@ -264,7 +294,7 @@ and is exactly what awkward 2's stricter bounds checking exposes — worth a ded
 
 ## 10. Top risks (post-introspection — reduced)
 1. **numpy 2.x** behavioral changes across ~40 files (`np.float_`/`np.bool8`/`np.NaN` removals, copy-on-write, `np.unique` API) — now the #1 risk since all coffea classes survived. Repo-wide numpy-2 audit.
-2. **JEC internals**: classes survive but `.build()` dropped `lazy_cache`, and the pickled factory blob must be regenerated under coffea 2026 / awkward 2.11. The hand-rolled JES/JER block (`correction.py ~1300-1600`) needs runtime validation.
+2. **JEC internals**: classes survive but `.build()` dropped `lazy_cache`. ~~the pickled factory blob must be regenerated~~ — **superseded by §4**: the pickle path is dormant, so no regeneration is needed. The hand-rolled JES/JER block (`correction.py ~1300-1600`) has since been exercised by every sweep run.
 3. **`hist` 2.10 drift** affecting `plot_utils.py` reimplemented `plotratio` / `._storage_type()` internals.
 4. **`from_root` default mode='virtual'**: confirm `Runner`+`IterativeExecutor` feeds materializing arrays (virtual/eager), not dask, so `len(events)`/`.to_numpy()` keep working. (Use non-dask executors for first validation.)
 

@@ -34,10 +34,12 @@ class NanoProcessor(processor.ProcessorABC):
         chunksize=75000,
         addPFMuons=False,  # BTA custom argument
         addAllTracks=False,  # BTA custom argument
+        ttbar_reweights="none",
     ):
         self._year = year
         self._campaign = campaign
         self.chunksize = chunksize
+        self.ttbar_reweights = ttbar_reweights
 
         self.SF_map = load_SF(self._year, self._campaign)
         # addPFMuons: if true, include the TrkInc and PFMuon collections, used by QCD based SF methods

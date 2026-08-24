@@ -24,10 +24,12 @@ class NanoProcessor(processor.ProcessorABC):
         isArray=True,
         noHist=False,
         chunksize=75000,
+        ttbar_reweights="none",
     ):
         self._year = year
         self._campaign = campaign
         self.chunksize = chunksize
+        self.ttbar_reweights = ttbar_reweights
         self.syst = isSyst
         self.name = name
         self.SF_map = load_SF(self._year, self._campaign)

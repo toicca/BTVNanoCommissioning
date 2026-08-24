@@ -3,6 +3,8 @@ import sys
 import json
 import argparse
 import time
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
@@ -29,8 +31,16 @@ def validate(file):
         return file
 
 
-def validate_dataset_structure(fileset, max_files_per_sample=None):
-    """Check dataset files and return a filtered fileset with only valid files."""
+def validate_dataset_structure(fileset, max_files_per_sample=None, open_retries=3):
+    """Check dataset files and return a filtered fileset with only valid files.
+
+    A file we failed to *read* tells us nothing about whether its structure is
+    compatible, so it is kept in the fileset -- processing has its own
+    --retries/--skipbadfiles for that -- rather than being silently dropped as
+    "incompatible", which used to turn a transient xrootd failure into an empty
+    output and a zero exit code. Only files we positively determined to be
+    malformed (missing branches, too few branches/events) are removed.
+    """
     import uproot
     import logging
     from copy import deepcopy
@@ -53,6 +63,22 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
     optional_met_branches = ["MET_pt", "PuppiMET_pt", "PFMET_pt"]
 
     filtered_fileset = deepcopy(fileset)
+    unreadable = []
+
+    def open_events(filename):
+        """Open a file, retrying transient read failures (xrootd redirectors
+        routinely answer "No servers have the file" for a file that reads fine
+        seconds later). Returns None if it stays unreadable."""
+        for attempt in range(open_retries):
+            try:
+                return uproot.open(filename)["Events"]
+            except Exception as e:
+                if attempt == open_retries - 1:
+                    print(
+                        f"ERROR opening file after {open_retries} attempts: {filename}, {e}"
+                    )
+                    return None
+                time.sleep(2 * (attempt + 1))
 
     if max_files_per_sample is not None:
         print(
@@ -71,10 +97,14 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
 
         # Check each file in the sample
         for filename in files_to_check:
+            events = open_events(filename)
+            if events is None:
+                # Unreadable, not proven malformed: keep it and report it.
+                unreadable.append(filename)
+                if not fast_mode:
+                    valid_files.append(filename)
+                continue
             try:
-                # print(f"Validating file: {filename}")
-                file = uproot.open(filename)
-                events = file["Events"]
                 branches = set(events.keys())
 
                 # Check branch count
@@ -121,6 +151,7 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
                 # print(f"File validation successful: {filename}")
 
             except Exception as e:
+                # The file opened, so this is a genuine structural problem.
                 print(f"ERROR validating file: {filename}, {e}")
                 if fast_mode and filename in valid_files:
                     valid_files.remove(filename)
@@ -134,6 +165,11 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
             del filtered_fileset[sample_name]
 
     # Summary
+    if unreadable:
+        print(
+            f"WARNING: {len(unreadable)} file(s) could not be opened during validation "
+            "and were kept in the fileset (structure unknown)."
+        )
     if len(filtered_fileset) == 0:
         print("WARNING: All files in dataset failed validation!")
         return None
@@ -427,7 +463,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.isSyst == "False":
         args.isSyst = False
-    os.environ["BTV_TTBAR_REWEIGHTS"] = args.ttbar_reweights
     print("Running with the following options:")
     print(args)
     ogoutput = args.output
@@ -570,8 +605,12 @@ if __name__ == "__main__":
     if args.selectionModifier != "":
         proc_args.append(args.selectionModifier)
 
-    processor_instance = workflows[args.workflow](*proc_args)
-    setattr(processor_instance, "ttbar_reweights", args.ttbar_reweights)
+    # Passed as a keyword (not an 8th positional) because the 8th positional slot
+    # is already the per-workflow argument: selectionModifier / addsel /
+    # model_base / tag_tagger / addPFMuons.
+    processor_instance = workflows[args.workflow](
+        *proc_args, ttbar_reweights=args.ttbar_reweights
+    )
 
     if args.skip_structure_validation:
         print("Skipping dataset structure validation (--skip-structure-validation).")
@@ -681,11 +720,25 @@ if __name__ == "__main__":
     #########
     # Execute
     if args.executor in ["futures", "iterative", "condor_standalone"]:
-        if args.executor == "iterative":
-            _exec = IterativeExecutor(retries=args.retries)
-        else:
-            _exec = FuturesExecutor(workers=args.workers, retries=args.retries)
+        # condor_standalone only writes job files, so no executor is built for it
+        # (a spawned worker pool would just sit idle).
         if args.executor != "condor_standalone":
+            if args.executor == "iterative":
+                _exec = IterativeExecutor(retries=args.retries)
+            else:
+                # ProcessPoolExecutor's default "fork" start method forks worker
+                # processes after uproot/XRootD may already hold open remote-file
+                # connections in this process; the forked worker can then hang
+                # indefinitely closing/using that inherited state. "spawn" starts
+                # each worker as a fresh interpreter instead, avoiding that.
+                _exec = FuturesExecutor(
+                    pool=ProcessPoolExecutor(
+                        max_workers=args.workers,
+                        mp_context=multiprocessing.get_context("spawn"),
+                    ),
+                    workers=args.workers,
+                    retries=args.retries,
+                )
             runner = Runner(
                 executor=_exec,
                 schema=PFNanoAODSchema,
@@ -1200,7 +1253,6 @@ if __name__ == "__main__":
     if not "lxplus" in args.executor:
         if args.noHist == False:
             save(output, coffeaoutput)
-            # print(output)
             print(f"Saving histograms to {os.path.abspath(coffeaoutput)}")
     if args.isArray:
         print(f"Arrays written under {os.path.abspath(outdir)}/")
