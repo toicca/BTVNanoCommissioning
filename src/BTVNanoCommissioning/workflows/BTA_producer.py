@@ -12,6 +12,7 @@ from BTVNanoCommissioning.helpers.BTA_helper import (
     cumsum,
     is_from_GSP,
     calc_ip_vector,
+    jet_id_columns,
 )
 from BTVNanoCommissioning.helpers.func import update
 from BTVNanoCommissioning.utils.correction import (
@@ -411,9 +412,8 @@ class NanoProcessor(processor.ProcessorABC):
         ###############
         #     Jet     #
         ###############
-        jet = events.Jet[
-            (events.Jet.pt > 20.0) & (abs(events.Jet.eta) < 2.5)
-        ]  # basic selection & remove jets inside veto map
+        jet_presel = (events.Jet.pt > 20.0) & (abs(events.Jet.eta) < 2.5)
+        jet = events.Jet[jet_presel]  # basic selection & remove jets inside veto map
 
         zeros = ak.zeros_like(jet.pt, dtype=int)
         if "pt_raw" not in jet.fields:
@@ -429,9 +429,7 @@ class NanoProcessor(processor.ProcessorABC):
                 "mass": jet.mass,
                 "uncorrpt": jet.pt_raw,
                 # jet ID/pileup ID // !!!
-                "looseID": jet.jetId >= 2,
-                "tightID": jet.jetId >= 4,
-                "tightlepvetoID": jet.jetId >= 6,
+                **jet_id_columns(events, jet, jet_presel, self._campaign),
                 # pileup ID (essentially userInt('puId106XUL18Id') for UL18)
                 # PU ID for Run 3 is not ready
                 # 'pileup_tightID':ak.values_astype((jet.puId & (1 << 0) > 0) | (jet.pt > 50.), int)  ,
@@ -550,8 +548,15 @@ class NanoProcessor(processor.ProcessorABC):
                 zeros,
             )  # in case the genJet index out of range
 
+            # `zeros` is the placeholder index for jets with no valid genJet match,
+            # but index 0 is itself out of range in events with *zero* GenJets, which
+            # awkward 2 rejects rather than silently returning garbage. Pad so the
+            # placeholder always resolves; its value is discarded by the ak.where.
+            genjet_padded = ak.pad_none(events.GenJet, 1, axis=1)
             Jet["genpt"] = ak.where(
-                jet.genJetIdx != -1, events.GenJet[genJetIdx].pt, -99
+                jet.genJetIdx != -1,
+                ak.fill_none(genjet_padded[genJetIdx].pt, -99),
+                -99,
             )
 
             # gen-level jet cleaning aginst prompt leptons
@@ -638,8 +643,12 @@ class NanoProcessor(processor.ProcessorABC):
             trkj_jetbased.dzFromPV,
             is_3d=True,
         )
-        trkj_jetbased["sign2D"] = ak.values_astype(np.sign(ip2dvec.dot(jet)), int)
-        trkj_jetbased["sign3D"] = ak.values_astype(np.sign(ip3dvec.dot(jet)), int)
+        # `ip2/3dvec` are ThreeVectors while `jet` is a LorentzVector; vector>=1.8
+        # refuses to dot mismatched dimensionalities instead of silently projecting,
+        # so take the jet's spatial part explicitly. Same numbers as before.
+        jet_pvec = jet.pvec
+        trkj_jetbased["sign2D"] = ak.values_astype(np.sign(ip2dvec.dot(jet_pvec)), int)
+        trkj_jetbased["sign3D"] = ak.values_astype(np.sign(ip3dvec.dot(jet_pvec)), int)
         trkj_jetbased["IP3D"] = ip3dvec.p
 
         trkj_jetbased["isHitL1"] = ak.values_astype(
@@ -882,8 +891,10 @@ class NanoProcessor(processor.ProcessorABC):
                 with_name="PtEtaPhiMLorentzVector",
             )
             # use a more consistent ptrel calculation to avoid precision lost (previously using sqrt(ptrack^2 - ptperp^2))
-            trkj_jetbased["ptrel"] = (vec.subtract(jet)).cross(
-                jet
+            # `cross` is only defined for 3D vectors under vector>=1.8, so take the
+            # spatial parts explicitly -- that is what the 4-vector cross reduced to.
+            trkj_jetbased["ptrel"] = (vec.subtract(jet)).pvec.cross(
+                jet.pvec
             ).p / jet.p  # trk_p * sin(theta(trk, jet))
 
             # flatten jet-based track arrays
@@ -954,8 +965,10 @@ class NanoProcessor(processor.ProcessorABC):
             mu_jetbased = mutrkj_jetbased.mu
 
             # calculate pTrel and other kinematics
-            mu_jetbased["ptrel"] = (mu_jetbased.subtract(jet)).cross(
-                jet
+            # `cross` needs 3D vectors under vector>=1.8; the spatial parts are what
+            # the old 4-vector cross reduced to.
+            mu_jetbased["ptrel"] = (mu_jetbased.subtract(jet)).pvec.cross(
+                jet.pvec
             ).p / jet.p  # mu_p * sin(theta(mu, jet))
             mu_jetbased["ratio"] = mu_jetbased.pt / jet.pt_raw
             mu_jetbased["ratioRel"] = (
@@ -963,7 +976,11 @@ class NanoProcessor(processor.ProcessorABC):
                 / jet.p2
                 * (jet.pt / jet.pt_raw)
             )
-            mu_jetbased["deltaR"] = mu_jetbased.delta_r(jet)
+            # NOT "deltaR": vector>=1.x defines `deltaR` as a method on Lorentz
+            # vectors, which shadows a field of that name (same collision class as
+            # the `rho` -> `event_rho` rename). The output branch below is still
+            # called deltaR -- that zip carries no vector behaviour.
+            mu_jetbased["deltaR_jet"] = mu_jetbased.delta_r(jet)
 
             # correct the impact parameter signs according to the jet direction
             # *note*: The original 2D IP sign is curvature based, obtained from track->dxy(vertex.position()).
@@ -974,12 +991,12 @@ class NanoProcessor(processor.ProcessorABC):
             mu_jetbased["ip2dsign_jetref"] = np.sign(
                 calc_ip_vector(
                     mu_jetbased, mu_jetbased.dxy, mu_jetbased.dz, is_3d=False
-                ).dot(jet)
+                ).dot(jet.pvec)
             )
             mu_jetbased["ip3dsign_jetref"] = np.sign(
                 calc_ip_vector(
                     mu_jetbased, mu_jetbased.dxy, mu_jetbased.dz, is_3d=True
-                ).dot(jet)
+                ).dot(jet.pvec)
             )
 
             # quality
@@ -1015,7 +1032,7 @@ class NanoProcessor(processor.ProcessorABC):
                     "ptrel": ak.fill_none(mu_jetbased_flat.ptrel, -99.0),
                     "ratio": ak.fill_none(mu_jetbased_flat.ratio, -99.0),
                     "ratioRel": ak.fill_none(mu_jetbased_flat.ratioRel, -99.0),
-                    "deltaR": ak.fill_none(mu_jetbased_flat.deltaR, -99.0),
+                    "deltaR": ak.fill_none(mu_jetbased_flat.deltaR_jet, -99.0),
                     "IP": ak.fill_none(
                         mu_jetbased_flat.ip3d * mu_jetbased_flat.ip3dsign_jetref,
                         -99.0,
