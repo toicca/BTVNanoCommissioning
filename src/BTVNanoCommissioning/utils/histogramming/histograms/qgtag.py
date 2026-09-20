@@ -27,6 +27,7 @@ def get_histograms(axes, **kwargs):
     is_dijet = kwargs.get("is_dijet", False)
     is_trijet = kwargs.get("is_trijet", False)
     is_photondijet = kwargs.get("is_photondijet", False)
+    is_dy = kwargs.get("is_dy", False)
     jet_fields = kwargs.get("jet_fields", [])
 
     # Taggers
@@ -62,6 +63,9 @@ def get_histograms(axes, **kwargs):
     if is_photondijet:
         # SoftJet (j2) is the quark-enriched probe of arXiv:1104.1175
         objs.extend(["SoftJet", "LeadJet"])
+    if is_dy:
+        # Second jet of the Z+jets selection; empty in one-jet events.
+        objs.append("SubleadJet")
 
     for obj in objs:
         if obj == "Tag":
@@ -74,6 +78,11 @@ def get_histograms(axes, **kwargs):
         for tagger in taggers:
             if tagger not in jet_fields:
                 continue
+            if obj == "Tag":
+                # The tag object is the dilepton (DY) or the photon (photon+jet),
+                # never a jet, so it carries no tagger field and these histograms
+                # could never be filled.
+                continue
             # hists[f"Obj{obj}_Var{tagger}"] = Hist.Hist(
             # *obj_axes,
             # Hist.axis.Regular(50, 0, 1, name=tagger, label=tagger),
@@ -82,7 +91,7 @@ def get_histograms(axes, **kwargs):
             hists[f"Obj{obj}_Var{tagger}_pteta"] = Hist.Hist(
                 *obj_axes,
                 Hist.axis.Regular(
-                    1,
+                    128,
                     0,
                     1,
                     name=tagger,
@@ -249,7 +258,6 @@ def qg_writer(
     # once up front rather than once per (systematic, histogram): that repeated
     # flattening dominated the runtime of systematics runs.
     flat = {}  # (obj, field) -> flattened field
-    abs_eta = {}  # obj -> flattened |eta|
     flav = {}  # obj -> flattened flavour label
     template = {}  # obj -> array carrying the object's jagged shape
     hist_specs = []
@@ -274,8 +282,7 @@ def qg_writer(
         template.setdefault(hobj, events[hobj].pt)
         if is_pteta:
             flatten_field(hobj, "pt")
-            if hobj not in abs_eta:
-                abs_eta[hobj] = ak.flatten(np.abs(events[hobj]["eta"]), axis=None)
+            flatten_field(hobj, "eta")
         if hobj != "Tag" and hobj not in flav:
             if "partonFlavour" not in events[hobj].fields:
                 flav[hobj] = ak.zeros_like(flatten_field(hobj, "pt"), dtype=int)
@@ -310,7 +317,7 @@ def qg_writer(
             }
             if is_pteta:
                 obj_axes["pt"] = flat[(hobj, "pt")]
-                obj_axes["eta"] = abs_eta[hobj]
+                obj_axes["eta"] = flat[(hobj, "eta")]
 
             if hobj != "Tag":
                 obj_axes["flav"] = flav[hobj]

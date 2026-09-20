@@ -285,31 +285,31 @@ class NanoProcessor(processor.ProcessorABC):
         # Built from the *selected* jets, so the stored objects are the ones the
         # cuts above were evaluated on.
         pruned_sel_jet = event_jet[event_level]
-        # pruned_ev["CenJet"] = ak.where(
-        # np.abs(pruned_sel_jet[:, 0].eta) < np.abs(pruned_sel_jet[:, 1].eta),
-        # pruned_sel_jet[:, 0],
-        # pruned_sel_jet[:, 1],
-        # )
-        # pruned_ev["FwdJet"] = ak.where(
-        # np.abs(pruned_sel_jet[:, 0].eta) > np.abs(pruned_sel_jet[:, 1].eta),
-        # pruned_sel_jet[:, 0],
-        # pruned_sel_jet[:, 1],
-        # )
-        # pruned_ev["RndJet"] = ak.where(
-        # np.random.randint(0, 2, size=len(pruned_ev)) == 0,
-        # pruned_sel_jet[:, 0],
-        # pruned_sel_jet[:, 1],
-        # )
-        # pruned_ev["LeadJet"] = ak.where(
-        # pruned_sel_jet[:, 0].pt > pruned_sel_jet[:, 1].pt,
-        # pruned_sel_jet[:, 0],
-        # pruned_sel_jet[:, 1],
-        # )
-        # pruned_ev["SubleadJet"] = ak.where(
-        # pruned_sel_jet[:, 0].pt < pruned_sel_jet[:, 1].pt,
-        # pruned_sel_jet[:, 0],
-        # pruned_sel_jet[:, 1],
-        # )
+        pruned_ev["CenJet"] = ak.where(
+            np.abs(pruned_sel_jet[:, 0].eta) < np.abs(pruned_sel_jet[:, 1].eta),
+            pruned_sel_jet[:, 0],
+            pruned_sel_jet[:, 1],
+        )
+        pruned_ev["FwdJet"] = ak.where(
+            np.abs(pruned_sel_jet[:, 0].eta) > np.abs(pruned_sel_jet[:, 1].eta),
+            pruned_sel_jet[:, 0],
+            pruned_sel_jet[:, 1],
+        )
+        pruned_ev["RndJet"] = ak.where(
+            np.random.randint(0, 2, size=len(pruned_ev)) == 0,
+            pruned_sel_jet[:, 0],
+            pruned_sel_jet[:, 1],
+        )
+        pruned_ev["LeadJet"] = ak.where(
+            pruned_sel_jet[:, 0].pt > pruned_sel_jet[:, 1].pt,
+            pruned_sel_jet[:, 0],
+            pruned_sel_jet[:, 1],
+        )
+        pruned_ev["SubleadJet"] = ak.where(
+            pruned_sel_jet[:, 0].pt < pruned_sel_jet[:, 1].pt,
+            pruned_sel_jet[:, 0],
+            pruned_sel_jet[:, 1],
+        )
         pruned_ev["SelJet"] = pruned_sel_jet[:, :2]
         pruned_ev["njet"] = ak.count(pruned_sel_jet.pt, axis=1)
 

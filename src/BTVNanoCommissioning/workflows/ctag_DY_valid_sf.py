@@ -99,6 +99,7 @@ class NanoProcessor(processor.ProcessorABC):
                     hist_collections=["qgtag"],
                     axes_collections=["qgtag"],
                     is_dijet=False,
+                    is_dy=True,
                 )
 
         if shift_name is None:
@@ -273,6 +274,11 @@ class NanoProcessor(processor.ProcessorABC):
         pruned_ev = events[event_level]
         if self.selMod == "QG":
             pruned_ev["SelJet"] = event_jet[event_level][:, 0]
+            # Second jet of the selection. Kept as a 0-or-1 element list rather
+            # than a padded None so that one-jet events simply contribute
+            # nothing, instead of introducing option types the writers would
+            # have to strip.
+            pruned_ev["SubleadJet"] = event_jet[event_level][:, 1:2]
             # sz is a candidate *sum*, so it is stored in cartesian coordinates
             # (x, y, z, t). Adding pt/eta/phi/mass on top left the record holding
             # both azimuthal representations, which vector>=1.8 rejects with
