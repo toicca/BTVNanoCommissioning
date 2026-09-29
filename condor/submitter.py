@@ -1,19 +1,53 @@
-import os, sys
+import os, re, sys
 import json
 import shutil
+import subprocess
 import tarfile
 import argparse
 
 
+def framework_toplevel(source_dir):
+    """Top-level entries that make up the framework, i.e. the ones git tracks.
+
+    Local job output (jobs_*, p3_*, arrays_*, the campaign output directories)
+    lives beside the code and runs to hundreds of MB; it must not end up in the
+    tarball that is transferred to every worker node. Returns None when this is
+    not a git checkout, in which case the caller ships everything as before.
+    """
+    try:
+        entries = subprocess.run(
+            ["git", "-C", source_dir, "ls-tree", "--name-only", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+        ).stdout.split()
+    except Exception:
+        return None
+    entries = [e for e in entries if os.path.exists(os.path.join(source_dir, e))]
+    return entries or None
+
+
 def make_tarfile(output_filename, source_dir, exclude_dirs=[]):
+    toplevel = framework_toplevel(source_dir)
+    if toplevel is None:
+        print("  Not a git checkout: tarring the whole directory.")
+        toplevel = sorted(os.listdir(source_dir))
     with tarfile.open(output_filename, "w:gz") as tar:
-        for root, dirs, files in os.walk(source_dir):
-            dirs[:] = [
-                d for d in dirs if d not in exclude_dirs
-            ]  # Exclude specified directories
-            for file in files:
-                file_path = os.path.join(root, file)
-                tar.add(file_path, arcname=os.path.relpath(file_path, source_dir))
+        for entry in toplevel:
+            if entry in exclude_dirs:
+                continue
+            entry_path = os.path.join(source_dir, entry)
+            if os.path.isfile(entry_path):
+                tar.add(entry_path, arcname=entry)
+                continue
+            for root, dirs, files in os.walk(entry_path):
+                dirs[:] = [
+                    d for d in dirs if d not in exclude_dirs and d != "__pycache__"
+                ]  # Exclude specified directories
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    tar.add(file_path, arcname=os.path.relpath(file_path, source_dir))
 
 
 def get_condor_submitter_parser(parser):
@@ -264,8 +298,51 @@ if __name__ == "__main__":
         f.write("\n".join([str(i) for i in range(counter)]))
 
     ## store the jdl file
+    # The standard CERN schedds refuse /eos paths inside a submit file: the
+    # executable, the log files, the queue-from list and the output sandbox are
+    # all read or written by the submit host. When the checkout lives on EOS,
+    # stage those on AFS and pull the input sandbox over xrootd instead.
+    # https://batchdocs.web.cern.ch/local/file_xfer_plugin.html
+    sandbox = [
+        f"{base_dir}/{job_dir}/arguments.json",
+        f"{base_dir}/{job_dir}/split_samples.json",
+        f"{base_dir}/{job_dir}/jobnum_list.txt",
+    ]
+    if not args.remoteRepo:
+        sandbox.append(f"{base_dir}/BTVNanoCommissioning.tar.gz")
+
+    submit_dir = f"{base_dir}/{job_dir}"
+    executable = f"{base_dir}/condor/execute.sh"
+
+    if base_dir.startswith("/eos/"):
+        afs_home = os.path.expanduser("~")
+        if not afs_home.startswith("/afs/"):
+            raise RuntimeError(
+                f"The checkout is on EOS ({base_dir}), which the standard schedds "
+                "cannot reference from a submit file, and $HOME is not on AFS to "
+                "stage the submit files on instead. Submit from an EosSubmit "
+                "schedd: https://batchdocs.web.cern.ch/local/eossubmit.html"
+            )
+        submit_dir = os.path.join(afs_home, ".btvcondor", args.jobName)
+        shutil.rmtree(submit_dir, ignore_errors=True)
+        os.makedirs(f"{submit_dir}/log")
+        shutil.copy(executable, f"{submit_dir}/execute.sh")
+        os.chmod(f"{submit_dir}/execute.sh", 0o755)
+        shutil.copy(f"{base_dir}/{job_dir}/jobnum_list.txt", submit_dir)
+        executable = f"{submit_dir}/execute.sh"
+        # /eos/home-<x>/ and /eos/user/<x>/ are the same volume; xrootd wants the latter.
+        sandbox = [
+            "root://eosuser.cern.ch/"
+            + re.sub(r"^/eos/home-([a-z0-9])/", r"/eos/user/\1/", path)
+            for path in sandbox
+        ]
+        print(
+            f"Checkout is on EOS; submit files and condor logs staged in {submit_dir}"
+        )
+
     jdl_template = """Universe   = vanilla
 Executable = {executable}
+initialdir = {submit_dir}
 
 
 Arguments = $(JOBNUM) $(request_cpus)
@@ -289,14 +366,14 @@ transfer_output_files   = .success
 
 Queue JOBNUM from {jobnum_file}
 """.format(
-        executable=f"{base_dir}/condor/execute.sh",
+        executable=executable,
+        submit_dir=submit_dir,
         jobqueue=args.jobqueue,
-        log_dir=f"{base_dir}/{job_dir}/log",
-        transfer_input_files=f"{base_dir}/{job_dir}/arguments.json,{base_dir}/{job_dir}/split_samples.json,{base_dir}/{job_dir}/jobnum_list.txt"
-        + ("" if args.remoteRepo else f",{base_dir}/BTVNanoCommissioning.tar.gz"),
+        log_dir=f"{submit_dir}/log",
+        transfer_input_files=",".join(sandbox),
         nCPU=args.nCPU,
         batch_name=args.jobName,
-        jobnum_file=f"{base_dir}/{job_dir}/jobnum_list.txt",
+        jobnum_file=f"{submit_dir}/jobnum_list.txt",
     )
     with open(os.path.join(job_dir, "submit.jdl"), "w") as f:
         f.write(jdl_template)
