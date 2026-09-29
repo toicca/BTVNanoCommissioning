@@ -311,15 +311,16 @@ def config_parser(parser):
     parser.add_argument(
         "--array-systs",
         dest="array_systs",
-        default="none",
+        default="both",
         choices=["none", "weights", "shifts", "both"],
-        help="How much systematic content --isArray trees carry. 'none' "
-        "(default) writes the nominal shift only, with the central weight "
-        "components. 'weights' adds one weight_<variation> branch per weight "
-        "variation. 'shifts' also writes a tree per JES/JER shift, each under "
-        "its own directory. 'both' does both -- the two are independent axes "
-        "and are not crossed. Needs --isSyst set to something other than False "
-        "for either to have content. Default: %(default)s",
+        help="How much systematic content --isArray trees carry. 'none' writes "
+        "the nominal shift only, with the central weight components. "
+        "'weights' adds one weight_<variation> branch per weight variation. "
+        "'shifts' also writes a tree per JES/JER shift, each under its own "
+        "directory. 'both' (default, the historical behaviour) does both -- the "
+        "two are independent axes and are not crossed. Needs --isSyst set to "
+        "something other than False for either to have content. "
+        "Default: %(default)s",
     )
     parser.add_argument(
         "--array-perjet",

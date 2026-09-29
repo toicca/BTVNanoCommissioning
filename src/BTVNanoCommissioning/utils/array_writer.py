@@ -229,17 +229,17 @@ def array_writer(
     perJet_collection="SelJet",  # jet collection used to determine jets/event
 ):
     # How much systematic content the trees carry, from runner.py --array-systs
-    # (set on the processor instance; absent for anything constructing a
-    # processor directly, which then keeps the historical behaviour).
-    #   none    nominal shift only, central weight components only  [default]
+    # (set on the processor instance; a processor constructed directly has no
+    # such attribute and gets the same default as the CLI).
+    #   none    nominal shift only, central weight components only
     #   weights adds one weight_<variation> branch per weight variation
     #   shifts  also writes a tree per JES/JER shift, under its own directory
-    #   both    both of the above
+    #   both    both of the above  [default: what array_writer always did]
     # The two are independent axes and are deliberately NOT crossed: the
     # weight_* branches are written on the nominal shift only, so enabling
     # "both" gives shifted trees plus one set of varied weights, not their
     # product.
-    syst_mode = getattr(processor_class, "arraySysts", "none")
+    syst_mode = getattr(processor_class, "arraySysts", "both")
     if systname[0] != "nominal" and syst_mode not in ("shifts", "both"):
         return
 
