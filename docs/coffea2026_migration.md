@@ -204,7 +204,7 @@ plus `fname`/`run`/`lumi`/`sumw` (confirms `column_accumulator`/`set_accumulator
 - Fix #6 matters beyond this migration: with a non-zero index the old code would have silently
   produced *wrong* `Genpt` values instead of crashing.
 
-## 8c. P3 WORKFLOW SWEEP RESULTS (36 / 41 validated end-to-end)
+## 8c. P3 WORKFLOW SWEEP RESULTS (41 / 41 validated end-to-end)
 
 All runs: `--max 1 --limit 1` on Summer24 MC unless noted. Env `btv_coffea_2026`
 (coffea 2026.7.0). The registry grew from 33 to 41 workflows with the
@@ -220,8 +220,9 @@ Sweep 3 (13): `QG_photondijet` `QG_photondijet_quark` `QG_photondijet_softprobe`
 `QG_trijet_dijetave_gluon` `ttdilep_sf` `ctag_ttdilep_sf` `ectag_ttdilep_sf`
 `emctag_ttdilep_sf` `sf_ttdilep_kin`.
 
-**FAIL / NOT VALIDATED (5):** `BTA`, `BTA_addPFMuons`, `BTA_addAllTracks`,
-`BTA_ttbar`, `QCD_smu_sf` — see the sweep-3 findings below.
+Sweep 3 follow-up (5): `BTA` `BTA_addPFMuons` `BTA_addAllTracks` `BTA_ttbar`
+`QCD_smu_sf` — these five failed on first contact and pass after the fixes in
+"Fixing the sweep-3 failures" below. **No workflow in the registry is now unvalidated.**
 
 Every sweep-3 PASS was checked for **non-vacuity**: the `.coffea` was reloaded with
 `coffea.util.load` and at least one `hist.Hist` verified to have a non-zero weighted sum
@@ -253,30 +254,51 @@ when `self.isSyst` is truthy, and that path does not exist centrally, so the ear
 That is the **only** migration bug in 18 runs — consistent with sweep 2 (13 workflows,
 0 bugs). The migration itself is converged.
 
-### Open failures from sweep 3 (all pre-existing, none coffea-related)
-1. **`BTA` / `BTA_addPFMuons` / `BTA_addAllTracks`** — `BTA_producer.py:553`:
-   `events.GenJet[genJetIdx]` raises
-   `IndexError: cannot slice ListArray … index out of range`. The code clamps an invalid
-   `genJetIdx` to `0`, which is still out of range for events with **zero** GenJets. This
-   is the identical defect to §8b fix #6 (`GenJet[0]`) at a second site, and exactly the
-   "unguarded minimum-object-count indexing" audit item. **NOT fixed** — the file was being
-   edited concurrently during the sweep.
-2. **`BTA_ttbar`** — `BTA_ttbar_producer.py:414`: `AttributeError: no field named 'jetId'`.
-   Confirmed by branch inspection that **NanoAODv15 dropped `Jet_jetId`** (the file exposes
-   no `Jet_*Id*` branch other than the index branches). This is a NanoAOD-version gap, not a
-   coffea one: `utils/selection.py:29` already guards the same access with
-   `has_jetId = hasattr(events.Jet, "jetId")`, and `BTA_ttbar_producer.py` never got the
-   equivalent guard. Note this workflow ran on a substituted Summer24 v15 fileset.
-3. **`QCD_smu_sf`** — `QCD_soft_mu_validation.py:179` still fails with
-   `IndexError … index 1`, i.e. the known `Jet[:, 1]` bug (selection requires >=1 jet, the
-   code indexes the second). **Status unchanged**, as expected; both remedies change physics
-   and it needs an owner decision.
+### Fixing the sweep-3 failures
+
+The three reported defects were each **masking further ones**: they aborted the
+processor before code that had never run under coffea 2026 could be reached. Fixing
+one exposed the next, so the five workflows took six fixes in total. Every fix below
+was verified by re-running the workflow on real data.
+
+| # | Site | Cause | Category |
+|---|---|---|---|
+| 1 | `BTA_producer.py` (genpt) | `events.GenJet[genJetIdx]` with the invalid-match index clamped to `0`, which is *itself* out of range in events with zero GenJets. Padded with `ak.pad_none(..., 1)`. Second instance of §8b fix #6. | **awkward 2** |
+| 2 | `BTA_producer.py`, `BTA_ttbar_producer.py` (jet ID columns) | `jet.jetId` unguarded, but **NanoAODv13+/v15 dropped `Jet_jetId`** (confirmed absent from the Summer24 v15 branch list). `utils/selection.py` already guarded the same access; the BTA producers never got it. | **NanoAOD version** |
+| 3 | `QCD_soft_mu_validation.py:179` | `Jet[:, 1]` while the selection requires only `>=1` jet. Padded so 1-jet events yield `-1`; acceptance unchanged. | **latent bug** |
+| 4 | `BTA_producer.py` ×4 (`sign2D`, `sign3D`, `ip2/3dsign_jetref`) | `ThreeVector.dot(LorentzVector)` — vector>=1.8 refuses mismatched dimensionality instead of silently projecting. Take `jet.pvec`. | **vector 1.8** |
+| 5 | `BTA_producer.py` ×2 (`ptrel`) | `cross` on two 4-vectors — "cross is only defined for 3D vectors". Take the spatial parts. | **vector 1.8** |
+| 6 | `BTA_producer.py:979` | a field literally named **`deltaR`** on a Lorentz-vector record. vector>=1.x defines `deltaR` as a *method*, which shadows the field, so the later read returned a bound method (`unknown type method`). Renamed the intermediate field to `deltaR_jet`; the output branch is still `deltaR`. | **vector 1.8** |
+| 7 | `QCD_soft_mu_validation.py` (JetSVs) | `ak.pad_none(JetSVs.jetIdx, len(filtered_events.Jet))` — `len` of a jagged array is the *event* count, not the per-event jet count, so the pad target was meaningless. Removed: the `valid_indices` filter immediately below already does what the pad was reaching for. | **latent bug** |
+
+Fix 2 needed a small, behaviour-preserving refactor: `utils/selection.py` now exposes
+`jet_id_mask(events, campaign)` (the per-jet ID with no kinematic cuts) and `jet_id`
+is that mask plus the pt/eta cuts, exactly as before. `helpers/BTA_helper.py` gained
+`jet_id_columns(...)`, shared by both BTA producers. Where `Jet_jetId` is absent the
+framework only implements TightLepVeto, so all three ID columns are filled with it —
+TightLepVeto implies Tight implies Loose, so a flagged jet genuinely passes that
+column, and jets passing only a looser ID are conservatively `False` rather than
+guessed. **This is a physics-content change to the BTA ntuple on v15 inputs and wants
+an owner's eye.**
+
+> **§8c's suspicion is confirmed twice over.** The BTA gate was not merely vacuous —
+> the code behind it had *six* separate coffea-2026 incompatibilities, none of which
+> any green CI run could have caught. `grep -c "skip "` on the fixed runs is 0, and
+> the logs show the producers reaching their ntuple write (which then fails only on
+> central-EOS permissions), i.e. full execution.
+
+Fix 6 generalises: **any field whose name collides with a `vector` method now
+resolves to the method.** This is the same failure class as the `rho` → `event_rho`
+rename (§8b fix #2) and is worth a repo-wide grep before the next campaign.
 
 ### Caveats on this table
 - The 23 workflows from sweeps 1-2 were **not** re-run in sweep 3, so they are not verified
   against the later `PackedSelection` refactors (`8983295`, `9733c9c`, `240ba5f`), the new
   awkward interfaces / explicit TTree writing (`6fa8cda`), or the array-writer output change
   (`0e4b8ed`).
+- `QCD_smu_sf` and the four `BTA*` workflows were re-verified after the fixes, together
+  with `example`, `ttsemilep_sf` and `QG_trijet` as regression checks on the
+  `jet_id` / `jet_id_mask` refactor (identical filled-histogram counts to sweep 3).
 - Sweep 3's first pass raced a concurrent edit adding `ttbar_reweights` to every processor
   `__init__`; 6 workflows aborted with
   `TypeError: NanoProcessor.__init__() got an unexpected keyword argument 'ttbar_reweights'`.
