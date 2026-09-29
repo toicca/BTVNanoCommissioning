@@ -19,6 +19,7 @@ from BTVNanoCommissioning.utils.correction import (
     load_SF,
     JME_shifts,
     JPCalibHandler,
+    _get_jpcalib_handler,
 )
 
 
@@ -774,7 +775,9 @@ class NanoProcessor(processor.ProcessorABC):
 
         # calculate track probability, based on IPsig and category
         JPMC_syst = True if self.isSyst == "JP_MC" else False
-        jpc = JPCalibHandler(self._year, self._campaign, isRealData, dataset, JPMC_syst)
+        jpc = _get_jpcalib_handler(
+            self._year, self._campaign, isRealData, dataset, JPMC_syst
+        )
         trkj_jetbased["proba"] = jpc.calc_track_proba(
             trkj_jetbased.btagSip3dSig,
             ak.where(trkj_jetbased.category >= 0, trkj_jetbased.category, 0),
