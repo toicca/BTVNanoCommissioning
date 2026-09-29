@@ -161,6 +161,20 @@ def get_main_parser():
         ),
     )
     parser.add_argument("--isArray", action="store_true", help="Output root files")
+    parser.add_argument(
+        "--array-systs",
+        dest="array_systs",
+        default="none",
+        choices=["none", "weights", "shifts", "both"],
+        help="How much systematic content --isArray trees carry; forwarded to "
+        "runner.py. See its --array-systs help. Default: %(default)s",
+    )
+    parser.add_argument(
+        "--array-perjet",
+        dest="array_perjet",
+        action="store_true",
+        help="Write --isArray trees with one row per jet; forwarded to runner.py.",
+    )
 
     parser.add_argument(
         "--noHist", action="store_true", help="Not output coffea histogram"

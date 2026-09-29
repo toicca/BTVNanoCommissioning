@@ -309,6 +309,26 @@ def config_parser(parser):
     )
     parser.add_argument("--isArray", action="store_true", help="Output root files")
     parser.add_argument(
+        "--array-systs",
+        dest="array_systs",
+        default="none",
+        choices=["none", "weights", "shifts", "both"],
+        help="How much systematic content --isArray trees carry. 'none' "
+        "(default) writes the nominal shift only, with the central weight "
+        "components. 'weights' adds one weight_<variation> branch per weight "
+        "variation. 'shifts' also writes a tree per JES/JER shift, each under "
+        "its own directory. 'both' does both -- the two are independent axes "
+        "and are not crossed. Needs --isSyst set to something other than False "
+        "for either to have content. Default: %(default)s",
+    )
+    parser.add_argument(
+        "--array-perjet",
+        dest="array_perjet",
+        action="store_true",
+        help="Write --isArray trees with one row per jet instead of one row per "
+        "event, using the SelJet collection to set the jets/event.",
+    )
+    parser.add_argument(
         "--noHist", action="store_true", help="Not output coffea histogram"
     )
     parser.add_argument(
@@ -611,6 +631,11 @@ if __name__ == "__main__":
     processor_instance = workflows[args.workflow](
         *proc_args, ttbar_reweights=args.ttbar_reweights
     )
+    # Set on the instance rather than threaded through every workflow's
+    # __init__: array_writer is the only consumer, and the instance is what
+    # gets pickled out to the dask/parsl/condor workers.
+    processor_instance.arraySysts = args.array_systs
+    processor_instance.arrayPerJet = args.array_perjet
 
     if args.skip_structure_validation:
         print("Skipping dataset structure validation (--skip-structure-validation).")

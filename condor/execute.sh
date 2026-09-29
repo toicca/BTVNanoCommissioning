@@ -14,7 +14,7 @@ WORKDIR=`pwd`
 
 # Get arguments
 declare -A ARGS
-for key in workflow output samplejson year campaign isSyst ttbar_reweights isArray noHist overwrite voms chunk skipbadfiles outputDir remoteRepo; do
+for key in workflow output samplejson year campaign isSyst ttbar_reweights isArray array_systs array_perjet noHist overwrite voms chunk skipbadfiles outputDir remoteRepo; do
     echo $(jq -r ".$key" $WORKDIR/arguments.json)
     ARGS[$key]=$(jq -r ".$key" $WORKDIR/arguments.json)
 done
@@ -95,6 +95,12 @@ if [ "${ARGS[isSyst]}" != "false" ]; then
 fi
 if [ "${ARGS[ttbar_reweights]}" != "none" ]; then
     OPTS="$OPTS --ttbar-reweights ${ARGS[ttbar_reweights]}"
+fi
+if [ "${ARGS[array_systs]}" != "none" ] && [ "${ARGS[array_systs]}" != "null" ]; then
+    OPTS="$OPTS --array-systs ${ARGS[array_systs]}"
+fi
+if [ "${ARGS[array_perjet]}" == true ]; then
+    OPTS="$OPTS --array-perjet"
 fi
 for key in  isArray noHist overwrite skipbadfiles; do
     if [ "${ARGS[$key]}" == true ]; then
