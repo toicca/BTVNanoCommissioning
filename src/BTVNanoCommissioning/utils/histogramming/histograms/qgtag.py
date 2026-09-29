@@ -40,6 +40,8 @@ def get_histograms(axes, **kwargs):
         # "btagPNetCvB",
         # "btagPNetCvL",
         "btagPNetQvG",
+        # (JME)NanoAODv9 name of the ParticleNet QvG score
+        "particleNetAK4_QvsG",
         # "btagRobustParTAK4B",
         # "btagRobustParTAK4CvB",
         # "btagRobustParTAK4CvL",

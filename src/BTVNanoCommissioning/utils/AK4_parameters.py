@@ -36,6 +36,18 @@ correction_config = {
             },
             "jetveto": {"Summer19UL16_V1": "jetvetomap"},
             "JME_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016preVFP-UL-NanoAODv15/latest/jet_jerc.json.gz",
+            # JMENanoAODv9 inputs carry AK4 CHS jets, whereas the Run 2 NanoAODv15
+            # reprocessing above uses PUPPI. JME_shifts switches to this block per
+            # file when the input is detected as NanoAODv9 (see _is_nanoaodv9).
+            "JME_NanoAODv9": {
+                "MC": "Summer19UL16APV_V7 Summer20UL16APV_JRV5",
+                "Run2016B": "Summer19UL16APV_V7",
+                "Run2016C": "Summer19UL16APV_V7",
+                "Run2016D": "Summer19UL16APV_V7",
+                "Run2016E": "Summer19UL16APV_V7",
+                "Run2016F": "Summer19UL16APV_V7",
+            },
+            "JME_NanoAODv9_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016preVFP-UL-NanoAODv9/latest/jet_jerc.json.gz",
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
@@ -85,6 +97,16 @@ correction_config = {
             },
             "jetveto": {"Summer19UL16_V1": "jetvetomap"},
             "JME_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv15/latest/jet_jerc.json.gz",
+            # JMENanoAODv9 inputs carry AK4 CHS jets, whereas the Run 2 NanoAODv15
+            # reprocessing above uses PUPPI. JME_shifts switches to this block per
+            # file when the input is detected as NanoAODv9 (see _is_nanoaodv9).
+            "JME_NanoAODv9": {
+                "MC": "Summer19UL16_V7 Summer20UL16_JRV5",
+                "Run2016F": "Summer19UL16_V7",
+                "Run2016G": "Summer19UL16_V7",
+                "Run2016H": "Summer19UL16_V7",
+            },
+            "JME_NanoAODv9_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/latest/jet_jerc.json.gz",
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
@@ -136,6 +158,18 @@ correction_config = {
             },
             "jetveto": {"Summer19UL17_V1": "jetvetomap"},
             "JME_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2017-UL-NanoAODv15/latest/jet_jerc.json.gz",
+            # JMENanoAODv9 inputs carry AK4 CHS jets, whereas the Run 2 NanoAODv15
+            # reprocessing above uses PUPPI. JME_shifts switches to this block per
+            # file when the input is detected as NanoAODv9 (see _is_nanoaodv9).
+            "JME_NanoAODv9": {
+                "MC": "Summer19UL17_V5 Summer19UL17_JRV4",
+                "Run2017B": "Summer19UL17_V5",
+                "Run2017C": "Summer19UL17_V5",
+                "Run2017D": "Summer19UL17_V5",
+                "Run2017E": "Summer19UL17_V5",
+                "Run2017F": "Summer19UL17_V5",
+            },
+            "JME_NanoAODv9_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2017-UL-NanoAODv9/latest/jet_jerc.json.gz",
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
@@ -185,6 +219,17 @@ correction_config = {
             },
             "jetveto": {"Summer19UL18_V1": "jetvetomap"},
             "JME_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv15/latest/jet_jerc.json.gz",
+            # JMENanoAODv9 inputs carry AK4 CHS jets, whereas the Run 2 NanoAODv15
+            # reprocessing above uses PUPPI. JME_shifts switches to this block per
+            # file when the input is detected as NanoAODv9 (see _is_nanoaodv9).
+            "JME_NanoAODv9": {
+                "MC": "Summer19UL18_V5 Summer19UL18_JRV3",
+                "Run2018A": "Summer19UL18_V5",
+                "Run2018B": "Summer19UL18_V5",
+                "Run2018C": "Summer19UL18_V5",
+                "Run2018D": "Summer19UL18_V5",
+            },
+            "JME_NanoAODv9_path": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/latest/jet_jerc.json.gz",
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",

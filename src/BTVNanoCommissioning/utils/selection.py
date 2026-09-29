@@ -1,6 +1,10 @@
 import awkward as ak
 import numpy as np
-from BTVNanoCommissioning.helpers.func import campaign_map
+from BTVNanoCommissioning.helpers.func import (
+    campaign_map,
+    is_nanoaodv9_jets,
+    RUN2_UL_CAMPAIGNS,
+)
 
 
 def HLT_helper(events, triggers):
@@ -94,6 +98,10 @@ def jet_id_mask(events, campaign):
             jetid & (events.Jet.muEF < 0.8) & (events.Jet.chEmEF < 0.8),
             jetid,
         )
+    elif campaign in RUN2_UL_CAMPAIGNS and is_nanoaodv9_jets(events):
+        # (JME)NanoAODv9 stores the UL jet ID as bits: 2 = tight,
+        # 4 = tightLepVeto, so jetId == 6 is TightLepVeto.
+        jetid = events.Jet.jetId >= 6
     elif campaign in ["2016preVFP-UL", "2016postVFP-UL"]:
         # Run 2 NanoAODv15 jet ID for 2016 (TightLepVeto)
         # https://twiki.cern.ch/twiki/bin/viewauth/CMS/JetID13TeV
@@ -172,6 +180,23 @@ def jet_id_mask(events, campaign):
         jetid = events.Jet.jetId >= 5
 
     return ak.values_astype(jetid, bool)
+
+
+def run2_puid_mask(events, year, max_pt=50.0):
+    """Run 2 pileup jet ID (Loose WP) from the NanoAODv9 ``Jet_puId`` bits.
+
+    The PU jet ID is only defined below 50 GeV, so harder jets always pass.
+    UL 2016 NanoAODv9 stores the working-point bits in reverse order
+    (1 = loose, 3 = medium, 7 = tight), 2017/2018 in the standard one
+    (4 = loose, 6 = medium, 7 = tight); both thresholds below select Loose.
+    Returns all-True when the field is absent, e.g. the Run 2 NanoAODv15
+    reprocessing, which only keeps ``Jet_puIdDisc``, or for Run 3.
+    """
+    year = str(year)
+    if "puId" not in events.Jet.fields or year not in ["2016", "2017", "2018"]:
+        return ak.ones_like(events.Jet.pt, dtype=bool)
+    loose = 1 if year == "2016" else 4
+    return (events.Jet.puId >= loose) | (events.Jet.pt > max_pt)
 
 
 def jet_id(events, campaign, max_eta=2.5, min_pt=20):

@@ -512,6 +512,8 @@ predefined_sample = {
             # NLO
             "DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8",
             "DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8",
+            # Run 2 UL (JMENanoAODv9)
+            "DYJetsToLL_M-50_TuneCP5_13TeV-madgraphMLM-pythia8",
         ],
         "minor_MC": ["TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8"],
     },
@@ -549,6 +551,16 @@ predefined_sample = {
             "QCD-4Jets_Bin-HT-40to70_TuneCP5_13p6TeV_madgraphMLM-pythia8",
             "QCD-4Jets_Bin-HT-70to100_TuneCP5_13p6TeV_madgraphMLM-pythia8",
             "QCD-4Jets_Bin-HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8",
+            # Run 2 UL (JMENanoAODv9), HT binned
+            "QCD_HT50to100_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT100to200_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT200to300_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT300to500_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT500to700_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT700to1000_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT1000to1500_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT1500to2000_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
+            "QCD_HT2000toInf_TuneCP5_PSWeights_13TeV-madgraph-pythia8",
         ],
     },
     "QG_dijet": {

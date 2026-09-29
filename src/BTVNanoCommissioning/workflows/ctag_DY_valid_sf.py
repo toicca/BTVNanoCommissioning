@@ -24,6 +24,7 @@ from BTVNanoCommissioning.utils.selection import (
     mu_idiso,
     ele_mvatightid,
     MET_filters,
+    run2_puid_mask,
 )
 
 
@@ -74,7 +75,11 @@ class NanoProcessor(processor.ProcessorABC):
         isMu = False
         isEle = False
         if "DYM" in self.selMod or "QG" in self.selMod:
-            triggers = ["Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass8"]
+            # The Mass8 variant only exists from 2017 on.
+            if self._year == "2016":
+                triggers = ["Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ"]
+            else:
+                triggers = ["Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass8"]
             isMu = True
         elif "DYE" in self.selMod:
             triggers = ["Ele23_Ele12_CaloIdL_TrackIdL_IsoVL"]
@@ -190,7 +195,10 @@ class NanoProcessor(processor.ProcessorABC):
         )
 
         if "QG" in self.selMod:
-            jetmask = jet_id(events, self._campaign, max_eta=5.0, min_pt=20.0)
+            # Run 2 pileup jet ID; a no-op when the input has no Jet_puId bits.
+            jetmask = jet_id(
+                events, self._campaign, max_eta=5.0, min_pt=20.0
+            ) & run2_puid_mask(events, self._year)
         else:
             jetmask = jet_id(events, self._campaign)
 

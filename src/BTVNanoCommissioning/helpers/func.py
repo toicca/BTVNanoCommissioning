@@ -37,6 +37,22 @@ def campaign_map():
     return dirnames
 
 
+RUN2_UL_CAMPAIGNS = ["2016preVFP-UL", "2016postVFP-UL", "2017-UL", "2018-UL"]
+
+
+def is_nanoaodv9_jets(events):
+    """True when the Jet collection has the (JME)NanoAODv9 layout.
+
+    Run 2 UL inputs come either as (JME)NanoAODv9, with AK4 CHS jets that
+    carry the ``jetId`` and ``puId`` bit fields, or as the NanoAODv15
+    reprocessing, with AK4 PUPPI jets that carry ``chMultiplicity`` and no
+    ID bits. Only meaningful for the Run 2 UL campaigns: Run 3 NanoAODv12
+    also has ``jetId`` without ``chMultiplicity``.
+    """
+    fields = events.Jet.fields
+    return "jetId" in fields and "chMultiplicity" not in fields
+
+
 def memory_usage_psutil():
     # return the memory usage in MB
     process = psutil.Process(os.getpid())

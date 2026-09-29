@@ -35,6 +35,7 @@ from BTVNanoCommissioning.utils.selection import (
     mu_idiso,
     ele_cuttightid,
     MET_filters,
+    run2_puid_mask,
 )
 
 
@@ -139,12 +140,8 @@ class NanoProcessor(processor.ProcessorABC):
         ## Jet cuts
         jet_sel = jet_id(events, self._campaign, max_eta=5.0, min_pt=20)
 
-        if self._year == "2016":
-            jet_puid = events.Jet.puId >= 1
-        elif self._year in ["2017", "2018"]:
-            jet_puid = events.Jet.puId >= 4
-        else:
-            jet_puid = ak.ones_like(jet_sel)
+        # Run 2 pileup jet ID; a no-op when the input has no Jet_puId bits.
+        jet_puid = run2_puid_mask(events, self._year)
 
         jet_sel = jet_sel & jet_puid
 
@@ -326,8 +323,24 @@ class NanoProcessor(processor.ProcessorABC):
             ttbar_reweights=self.ttbar_reweights,
             campaign=self._campaign,
         )
-        if isRealData:
-            if self._year == "2022":
+        # Run 2 ZeroBias: no per-lumisection prescale weights (brilcalc is not
+        # usable for these runs here). Data keeps weight 1 and the MC is
+        # normalised to the effective ZeroBias luminosity instead, as in the
+        # Run 2 QG validation framework: 2016preVFP 0.000020189, 2016postVFP
+        # 0.000009223, 2017 0.000216746, 2018 0.000078657 /fb.
+        run2_zerobias = self.selectionModifier == "ZB" and self._year in [
+            "2016",
+            "2017",
+            "2018",
+        ]
+        if isRealData and not run2_zerobias:
+            if self._year == "2016":
+                run_num = "271036_284044"
+            elif self._year == "2017":
+                run_num = "294927_306462"
+            elif self._year == "2018":
+                run_num = "314472_325175"
+            elif self._year == "2022":
                 run_num = "355374_362760"
             elif self._year == "2023":
                 run_num = "366727_370790"

@@ -35,6 +35,7 @@ from BTVNanoCommissioning.helpers.func import (
     _compile_jec_,
     _load_jmefactory,
     campaign_map,
+    is_nanoaodv9_jets,
 )
 from BTVNanoCommissioning.utils.AK4_parameters import correction_config as config
 
@@ -458,6 +459,19 @@ def _load_SF_impl(year, campaign, selMod="default", syst=False):
                         raise (
                             f"{dataset} has no JEC map : {correct_map['JME_cfg'][dataset]} available"
                         )
+            # Optional CHS correction set for JMENanoAODv9 inputs of a Run 2 UL
+            # campaign, whose default JME block targets NanoAODv15 PUPPI jets.
+            # JME_shifts picks one of the two per file.
+            if "JME_NanoAODv9" in conf and os.path.exists(
+                conf.get("JME_NanoAODv9_path", "")
+            ):
+                correct_map["JME_NanoAODv9"] = {
+                    "JME": correctionlib.CorrectionSet.from_file(
+                        conf["JME_NanoAODv9_path"]
+                    ),
+                    "JME_cfg": conf["JME_NanoAODv9"],
+                    "JME_json_path": conf["JME_NanoAODv9_path"],
+                }
         elif SF == "JMAR":
             if os.path.exists(
                 f"/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/{_cvmfs_dir(campaign, 'JMAR')}/latest/jmar.json.gz"
@@ -1089,6 +1103,13 @@ def JME_shifts(
     systematic = resolve_shift_systematic(systematic)
 
     dataset = events.metadata["dataset"]
+
+    # Run 2 UL campaigns accept both NanoAODv15 (PUPPI) and JMENanoAODv9 (CHS)
+    # inputs. For a v9 file, evaluate with the CHS correction set instead. A
+    # shallow copy keeps the cached SF map itself untouched.
+    if "JME_NanoAODv9" in correct_map.keys() and is_nanoaodv9_jets(events):
+        correct_map = {k: correct_map[k] for k in correct_map.keys()}
+        correct_map.update(correct_map["JME_NanoAODv9"])
 
     # Year-dependent JES uncertainty names (e.g. Regrouped_Absolute_YYYY)
     # must use the MC JEC campaign year, not the data year.  When MC JECs are
