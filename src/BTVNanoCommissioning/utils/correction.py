@@ -1042,6 +1042,18 @@ def calc_T1_MET(
         return pt_miss_final, phi_miss_final
 
 
+def resolve_shift_systematic(systematic):
+    """Normalise an --isSyst value for the object scale/resolution shifts.
+
+    `weight_only` asks for weight variations alone, so the object collections
+    stay at their nominal correction and no JES/JER/muon/electron scale shift is
+    built. The weight variations themselves are added by `weight_manager`, which
+    still sees the unmodified flag. Every other value is passed through: the
+    shift builders already treat anything but False as "make the variations".
+    """
+    return False if systematic == "weight_only" else systematic
+
+
 ## JERC
 def JME_shifts(
     shifts,
@@ -1074,6 +1086,8 @@ def JME_shifts(
     KeyError: If required keys are missing in the correct_map.
     ValueError: If the campaign is not recognized or supported.
     """
+    systematic = resolve_shift_systematic(systematic)
+
     dataset = events.metadata["dataset"]
 
     # Year-dependent JES uncertainty names (e.g. Regrouped_Absolute_YYYY)
@@ -1765,6 +1779,8 @@ def Roccor_shifts(shifts, correct_map, events, isRealData, systematic=False):
     ValueError: If the campaign is not recognized or supported.
     """
 
+    systematic = resolve_shift_systematic(systematic)
+
     mu = events.Muon
     if isRealData:
         SF = correct_map["roccor"].kScaleDT(
@@ -1855,6 +1871,8 @@ def MUO_shifts(shifts, correct_map, events, isRealData, systematic=False):
     Adapted from this example of muon SS correction usage:
     https://gitlab.cern.ch/cms-analysis-corrections/MUO/examples/-/blob/latest/muoScaleAndSmearingCoffeaExample.py
     """
+
+    systematic = resolve_shift_systematic(systematic)
 
     mu = events.Muon
 
@@ -1987,6 +2005,8 @@ def EGM_shifts(shifts, correct_map, events, isRealData, systematic=False):
     Adapted from this example of electron SS correction usage:
     https://gitlab.cern.ch/cms-analysis-corrections/EGM/examples/-/blob/latest/egmScaleAndSmearingExample.py
     """
+    systematic = resolve_shift_systematic(systematic)
+
     ele = events.Electron
     n_ele = ak.num(ele)
     events_run = ak.flatten(ak.broadcast_arrays(events.run, ele.eta)[0])
