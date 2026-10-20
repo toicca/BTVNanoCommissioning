@@ -229,17 +229,17 @@ def array_writer(
     perJet_collection="SelJet",  # jet collection used to determine jets/event
 ):
     # How much systematic content the trees carry, from runner.py --array-systs
-    # (set on the processor instance; absent for anything constructing a
-    # processor directly, which then keeps the historical behaviour).
-    #   none    nominal shift only, central weight components only  [default]
-    #   weights adds one weight_<variation> branch per weight variation
+    # (set on the processor instance; a processor constructed directly has no
+    # such attribute and gets the same default as the CLI).
+    #   none    nominal shift only, central weight components only
+    #   weights adds one weight_syst_<variation> branch per weight variation
     #   shifts  also writes a tree per JES/JER shift, under its own directory
-    #   both    both of the above
+    #   both    both of the above  [default: what array_writer always did]
     # The two are independent axes and are deliberately NOT crossed: the
     # weight_* branches are written on the nominal shift only, so enabling
     # "both" gives shifted trees plus one set of varied weights, not their
     # product.
-    syst_mode = getattr(processor_class, "arraySysts", "none")
+    syst_mode = getattr(processor_class, "arraySysts", "both")
     if systname[0] != "nominal" and syst_mode not in ("shifts", "both"):
         return
 
@@ -250,6 +250,14 @@ def array_writer(
 
     if weights is not None:
         pruned_event["weight"] = weights.weight()
+        # One branch per weight component, named <component>_weight as on master.
+        for ind_wei in weights.weightStatistics.keys():
+            pruned_event[f"{ind_wei}_weight"] = weights.partial_weight(
+                include=[ind_wei]
+            )
+
+        # Grouped central weights, in addition to the per-component branches
+        # above, for the CFM/SLIM schemas.
         added = set(weights.weightStatistics.keys())
 
         def _partial(names):
@@ -265,14 +273,16 @@ def array_writer(
         pruned_event["eleWeight"] = _partial([n for n in added if n.startswith("ele_")])
         pruned_event["ftagWeight"] = _partial(_FTAG_SF_NAMES)
 
-        # Varied total weights, one branch per variation. Only on the nominal
-        # shift: a JES-shifted tree's weight variations are the same set, and
-        # writing them there would store the cross product for no gain. The
-        # "weight" substring is what gets these picked up by the out_branch
-        # selection below, so the prefix is load-bearing -- do not rename.
+        # Varied total weights, one weight_syst_<variation> branch each, as on
+        # master. Only on the nominal shift: a JES-shifted tree's weight
+        # variations are the same set, and writing them there would store the
+        # cross product for no gain. The "weight" substring is what gets these
+        # picked up by the out_branch selection below.
         if syst_mode in ("weights", "both") and systname[0] == "nominal":
             for variation in sorted(weights.variations):
-                pruned_event[f"weight_{variation}"] = weights.weight(modifier=variation)
+                pruned_event[f"weight_syst_{variation}"] = weights.weight(
+                    modifier=variation
+                )
 
     if not isRealData:
         xs_dict = _xs_lookup()

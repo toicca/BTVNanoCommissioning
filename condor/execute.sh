@@ -96,7 +96,9 @@ fi
 if [ "${ARGS[ttbar_reweights]}" != "none" ]; then
     OPTS="$OPTS --ttbar-reweights ${ARGS[ttbar_reweights]}"
 fi
-if [ "${ARGS[array_systs]}" != "none" ] && [ "${ARGS[array_systs]}" != "null" ]; then
+# Forward every explicit value, "none" included: runner.py's default is not
+# "none", so dropping it here would silently turn the trees' systematics back on.
+if [ "${ARGS[array_systs]}" != "null" ]; then
     OPTS="$OPTS --array-systs ${ARGS[array_systs]}"
 fi
 if [ "${ARGS[array_perjet]}" == true ]; then

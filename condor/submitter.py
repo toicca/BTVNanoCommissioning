@@ -164,7 +164,7 @@ def get_main_parser():
     parser.add_argument(
         "--array-systs",
         dest="array_systs",
-        default="none",
+        default="both",
         choices=["none", "weights", "shifts", "both"],
         help="How much systematic content --isArray trees carry; forwarded to "
         "runner.py. See its --array-systs help. Default: %(default)s",
