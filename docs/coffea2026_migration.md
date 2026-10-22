@@ -21,14 +21,14 @@ coffea 2026's `from_root` default mode is `'virtual'` (materialize-on-access) �
 | **JEC/JER build** | `utils/correction.py` (`JME_shifts`, ~1300–1669), `helpers/func.py` (factory) | `CorrectedJetsFactory.build(..., lazy_cache=events.caches[0])` | Drop `lazy_cache`; regen factory pickle (§4) |
 | **Accumulators** | `helpers/func.py` (`dump_lumi`) | `column_accumulator`, `set_accumulator` | ✅ No change (both survive) |
 | **Histogram fills** | `utils/histogramming/histogrammer.py` | eager flatten + numpy | Minimal; fix latent `if <ak> > <ak>` bug (§6) |
-| **Env/pins** | `setup.cfg`, `test_env.yml` | coffea 0.7.31 | DONE |
+| **Env/pins** | `setup.cfg`, `btv_env.yml` (was `test_env.yml`) | coffea 0.7.31 | DONE |
 | **Outliers** | `BTA_producer.py`, `BTA_ttbar_producer.py`, `sf_ttdilep_kin.py` | extra `np.array(ak…)`, BDT `to_numpy` | Validate under eager |
 
 Everything else (corrections `extractor`/`LumiMask`/`Weights`/`BTagScaleFactor`, plotting scripts, condor submitters) works with minor/no changes — confirmed by introspection (§7).
 
 ## 2. Environment (done)
 - `setup.cfg`: `coffea[dask,dask-awkward,xrootd]==2026.7.0`, `correctionlib>=2.6.0`, `python_requires=>=3.10`.
-- `test_env.yml`: python 3.10–3.12, coffea 2026.7.0 via pip, `parsl>=2024.12.09`, dropped `setuptools<=70.1.1` cap.
+- `btv_env.yml` (renamed from `test_env.yml` in `6006cd1`; the CI `environment-file:` entries now follow the rename): python 3.10–3.12, coffea 2026.7.0 via pip, `parsl>=2024.12.09`, dropped `setuptools<=70.1.1` cap.
 - Env `btv_coffea_2026` created (Python 3.12, numpy 2.x, awkward 2.11). Canonical CI env name stays `btv_coffea`.
 
 ## 3. Execution rewrite — `runner.py` (the core change)
@@ -160,7 +160,7 @@ Stack: coffea **2026.7.0**, awkward **2.11.0**, hist **2.10.1**, uproot **5.7.5*
 - Execution API is **only** in `runner.py` (verified) — no other file uses `run_uproot_job`.
 - Env naming: canonical name stays `btv_coffea` (CI `activate-environment: btv_coffea`; hardcoded in runner.py:613, condor_lxplus/submitter.py:231/235, scripts/fetch.py). Keep the migrated production env named `btv_coffea`; `btv_coffea_2026` is a dev sandbox only.
 - Postprocessing scripts (`scripts/plotdataMC.py`, `make_template.py`, `comparison.py`, `plotSysts.py`, …) load `.coffea` via `coffea.util.load`; output object shape unchanged in eager mode → expected to keep working (watch `hist` version drift in `plot_utils.py`).
-- CI workflows (`.github/workflows/*_workflow.yml`) build `test_env.yml` and run one workflow each — these become the end-to-end migration gate.
+- CI workflows (`.github/workflows/*_workflow.yml`, `validation.yml`) build `btv_env.yml` and run one workflow each — these become the end-to-end migration gate. CI pins Python 3.10, while the sweeps ran on 3.12.
 
 ## 8b. END-TO-END VALIDATION ✅ (P1+P2+P3 verified with real data)
 
@@ -308,16 +308,27 @@ rename (§8b fix #2) and is worth a repo-wide grep before the next campaign.
 
 ## 9. Phasing / PR breakdown
 - **P0 (done)**: pins + env + `import coffea` smoke test.
-- **P1**: `runner.py` execution rewrite; get `example` workflow end-to-end on 1 file with `IterativeExecutor` (eager). Green = events load + histograms fill + `.coffea` saved.
-- **P2**: JEC/JER — drop `events.caches[0]`, regenerate factory pickle, fix `.build()` call; get `JME_shifts` (nominal + up/down) working.
-- **P3**: sweep the other 17 processors; fix eager outliers (`BTA_producer`, `BTA_ttbar_producer`, `sf_ttdilep_kin` BDT `to_numpy`); numpy-2 audit (`np.float_`, copy semantics).
-- **P4**: scale-out executors (dask/parsl/condor) + CI green across all `*_workflow.yml`.
-- **P5**: plotting/template scripts + docs.
+- **P1 (done)**: `runner.py` execution rewrite to `Runner` + executor classes (§3, §8b).
+- **P2 (done)**: JEC/JER — `lazy_cache` / `events.caches[0]` dropped, `.build()` calls fixed. Pickle regeneration is not needed: that path is dormant (§4). The live correctionlib `JME_shifts` block runs in every sweep.
+- **P3 (done)**: all 41 registered workflows validated end-to-end (§8c). The numpy-2 alias audit is clean: no `np.float_`/`np.bool8`/`np.NaN`/`np.int0`/`np.complex_`/`np.unicode_`/`np.string_` left in `src/`, `scripts/` or `runner.py`.
+- **P4 (partly done)**:
+  - ✅ parsl/dask cluster configs build under parsl 2026 / dask-jobqueue 0.9 (`43eac31`). Real SLURM/HTCondor submission through them is **not** verified.
+  - ✅ `condor/submitter.py` works from an EOS checkout (`96b2bab`, `561500f`) and is used for production on lxplus.
+  - ✅ CI `environment-file:` entries point at `btv_env.yml` again. They still named `test_env.yml` after the rename, so every CI job failed at environment setup.
+  - ⬜ CI green across all `*_workflow.yml` + `validation.yml`, on Python 3.10.
+  - ⬜ Re-run the 23 sweep-1/2 workflows against the later PackedSelection / TTree-writing / array-writer changes (§8c caveats, plus `3c2b0ec`, `7f2e3a1`).
+  - ⬜ CI smoke test that only instantiates all 41 processors (§8c).
+- **P5 (started)**:
+  - ✅ `plot_utils.py` rebin helper uses `h.storage_type()` instead of `_storage_type()`, which hist 2.10 deprecates with a `FutureWarning`.
+  - ⬜ Run the post-processing scripts (`plotdataMC.py`, `make_template.py`, `comparison.py`, …) on a coffea-2026 `.coffea` output.
+  - ⬜ Optional cleanup: drop the unused `accumulator` property / `_accumulator` from the 17 processors that still carry it (§5).
+  - ⬜ Repo-wide check for record fields whose names collide with `vector` methods (§8c fix 6).
+- **Unrelated to the migration**: `Rereco17_94X` and `Winter22Run3` are missing from `campaign_map()` (§4); fix or remove them.
 
 ## 10. Top risks (post-introspection — reduced)
 1. **numpy 2.x** behavioral changes across ~40 files (`np.float_`/`np.bool8`/`np.NaN` removals, copy-on-write, `np.unique` API) — now the #1 risk since all coffea classes survived. Repo-wide numpy-2 audit.
 2. **JEC internals**: classes survive but `.build()` dropped `lazy_cache`. ~~the pickled factory blob must be regenerated~~ — **superseded by §4**: the pickle path is dormant, so no regeneration is needed. The hand-rolled JES/JER block (`correction.py ~1300-1600`) has since been exercised by every sweep run.
-3. **`hist` 2.10 drift** affecting `plot_utils.py` reimplemented `plotratio` / `._storage_type()` internals.
+3. **`hist` 2.10 drift** affecting `plot_utils.py` reimplemented `plotratio` / `._storage_type()` internals. `._storage_type()` is replaced by the public `storage_type()`; `plotratio` is still unchecked.
 4. **`from_root` default mode='virtual'**: confirm `Runner`+`IterativeExecutor` feeds materializing arrays (virtual/eager), not dask, so `len(events)`/`.to_numpy()` keep working. (Use non-dask executors for first validation.)
 
 _(Resolved by introspection: column_accumulator/set_accumulator, Rochester txt_converters/rochester_lookup, LumiMask, extractor, BTagScaleFactor, Weights, ProcessorABC — all still present, no longer risks.)_
