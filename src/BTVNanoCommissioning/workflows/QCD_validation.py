@@ -164,10 +164,12 @@ class NanoProcessor(processor.ProcessorABC):
             )
             filtered_events = pruned_ev[valid_events]
 
-            # Pad pruned_ev.JetSVs.jetIdx to match the length of pruned_ev.Jet
-            filtered_events.JetSVs.jetIdx = ak.pad_none(
-                filtered_events.JetSVs.jetIdx, len(filtered_events.Jet), clip=True
-            )
+            # (Removed: a pad of JetSVs.jetIdx to `len(filtered_events.Jet)`. `len`
+            # on a jagged array is the *event* count, not the per-event jet count,
+            # so the pad target was meaningless, and assigning a field as an
+            # attribute is rejected by awkward 2. Out-of-range indices are already
+            # handled by the valid_indices filter immediately below, which is what
+            # the pad was evidently reaching for.)
 
             # Print the initial state of pruned_ev.Jet and pruned_ev.JetSVs.jetIdx
             # print("pruned_ev.Jet", filtered_events.Jet)
@@ -197,7 +199,7 @@ class NanoProcessor(processor.ProcessorABC):
                     "Warning: Some indices in pruned_ev.JetSVs.jetIdx are out of range."
                 )
                 # Filter out invalid indices
-                filtered_events.JetSVs = filtered_events.JetSVs[valid_indices]
+                filtered_events["JetSVs"] = filtered_events.JetSVs[valid_indices]
 
             # Check if pruned_ev.JetSVs.jetIdx is empty after filtering
             if len(filtered_events.JetSVs.jetIdx) == 0:

@@ -460,8 +460,15 @@ class NanoProcessor(processor.ProcessorABC):
                 zeros,
             )  # in case the genJet index out of range
 
+            # `zeros` is the placeholder index for jets with no valid genJet match,
+            # but index 0 is itself out of range in events with *zero* GenJets, which
+            # awkward 2 rejects rather than silently returning garbage. Pad so the
+            # placeholder always resolves; its value is discarded by the ak.where.
+            genjet_padded = ak.pad_none(events.GenJet, 1, axis=1)
             Jet["genpt"] = ak.where(
-                jet.genJetIdx != -1, events.GenJet[genJetIdx].pt, -99
+                jet.genJetIdx != -1,
+                ak.fill_none(genjet_padded[genJetIdx].pt, -99),
+                -99,
             )
 
             # gen-level jet cleaning aginst prompt leptons
