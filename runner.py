@@ -473,7 +473,7 @@ def debug_parser(parser):
     return parser
 
 
-if __name__ == "__main__":
+def get_main_parser():
     parser = argparse.ArgumentParser(
         description="Run analysis on baconbits files using processor coffea files"
     )
@@ -481,6 +481,43 @@ if __name__ == "__main__":
     parser = config_parser(parser)
     parser = scaleout_parser(parser)
     parser = debug_parser(parser)
+    return parser
+
+
+def build_processor(args, outdir):
+    """Instantiate the processor for ``args.workflow`` as a run does.
+
+    Shared with scripts/check_workflows.py, which builds every registered
+    workflow this way so a runner/processor signature mismatch fails in CI.
+    """
+    proc_args = [
+        args.year,
+        args.campaign,
+        outdir,
+        args.isSyst,
+        args.isArray,
+        args.noHist,
+        args.chunk,
+    ]
+    if args.selectionModifier != "":
+        proc_args.append(args.selectionModifier)
+
+    # Passed as a keyword (not an 8th positional) because the 8th positional slot
+    # is already the per-workflow argument: selectionModifier / addsel /
+    # model_base / tag_tagger / addPFMuons.
+    processor_instance = workflows[args.workflow](
+        *proc_args, ttbar_reweights=args.ttbar_reweights
+    )
+    # Set on the instance rather than threaded through every workflow's
+    # __init__: array_writer is the only consumer, and the instance is what
+    # gets pickled out to the dask/parsl/condor workers.
+    processor_instance.arraySysts = args.array_systs
+    processor_instance.arrayPerJet = args.array_perjet
+    return processor_instance
+
+
+if __name__ == "__main__":
+    parser = get_main_parser()
     args = parser.parse_args()
     if args.isSyst == "False":
         args.isSyst = False
@@ -614,29 +651,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # load workflow
-    proc_args = [
-        args.year,
-        args.campaign,
-        outdir,
-        args.isSyst,
-        args.isArray,
-        args.noHist,
-        args.chunk,
-    ]
-    if args.selectionModifier != "":
-        proc_args.append(args.selectionModifier)
-
-    # Passed as a keyword (not an 8th positional) because the 8th positional slot
-    # is already the per-workflow argument: selectionModifier / addsel /
-    # model_base / tag_tagger / addPFMuons.
-    processor_instance = workflows[args.workflow](
-        *proc_args, ttbar_reweights=args.ttbar_reweights
-    )
-    # Set on the instance rather than threaded through every workflow's
-    # __init__: array_writer is the only consumer, and the instance is what
-    # gets pickled out to the dask/parsl/condor workers.
-    processor_instance.arraySysts = args.array_systs
-    processor_instance.arrayPerJet = args.array_perjet
+    processor_instance = build_processor(args, outdir)
 
     if args.skip_structure_validation:
         print("Skipping dataset structure validation (--skip-structure-validation).")
