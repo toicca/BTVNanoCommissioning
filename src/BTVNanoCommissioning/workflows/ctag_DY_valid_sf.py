@@ -53,10 +53,6 @@ class NanoProcessor(processor.ProcessorABC):
         # Load corrections
         self.SF_map = load_SF(self._year, self._campaign)
 
-    @property
-    def accumulator(self):
-        return self._accumulator
-
     def process(self, events):
         events = missing_branch(events)
         sumws = reweighting(events, self.isSyst)

@@ -437,10 +437,6 @@ class NanoProcessor(processor.ProcessorABC):
         #        self._regions = ["central", "sbiso", "sbbtagM", "sbbtagL", "sbisobtagM"]
         self._regions = ["central", "sbbtagL", "sbbtagM"]
 
-    @property
-    def accumulator(self):
-        return self._accumulator
-
     def define_histograms(self, events):
         """
         Define histograms to be written out by workflow

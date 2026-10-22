@@ -51,10 +51,6 @@ class NanoProcessor(processor.ProcessorABC):
         self.addAllTracks = addAllTracks
         self.isSyst = isSyst
 
-    @property
-    def accumulator(self):
-        return self._accumulator
-
     def process(self, events):
         isRealData = not hasattr(events, "genWeight")
         dataset = events.metadata["dataset"]

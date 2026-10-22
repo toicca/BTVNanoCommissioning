@@ -41,10 +41,6 @@ class NanoProcessor(processor.ProcessorABC):
         # for consistency, we will disable both trigger selection in MC and data here
         self.do_trig_sel = False
 
-    @property
-    def accumulator(self):
-        return self._accumulator
-
     def process(self, events):
         isRealData = not hasattr(events, "genWeight")
         dataset = events.metadata["dataset"]

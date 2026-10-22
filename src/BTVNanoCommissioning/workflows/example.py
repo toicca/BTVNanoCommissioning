@@ -60,10 +60,6 @@ class NanoProcessor(processor.ProcessorABC):
         ## Load corrections
         self.SF_map = load_SF(self._year, self._campaign)
 
-    @property
-    def accumulator(self):
-        return self._accumulator
-
     ## Apply corrections on momentum/mass on MET, Jet, Muon
     def process(self, events):
         events = missing_branch(events)
