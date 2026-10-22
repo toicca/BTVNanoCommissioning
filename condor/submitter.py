@@ -213,18 +213,56 @@ if __name__ == "__main__":
     print("Running with the following options:")
     print(args)
 
-    uid = os.getuid()
-    homedir = os.getenv("HOME")
-    expected_value = f"{homedir}/x509up_u{uid}"
-    current_value = os.getenv("X509_USER_PROXY")
-    if current_value != expected_value:
-        print("X509_USER_PROXY is NOT set correctly.")
-        print(f"Please run the following command in your shell:")
-        print(f"export X509_USER_PROXY=$HOME/x509up_u`id -u`")
+    # condor_submit delegates the proxy named in the submit file to the jobs, so
+    # take it from X509_USER_PROXY (where voms-proxy-init writes when it is set)
+    # rather than assuming a fixed location, and refuse to submit without a valid one.
+    proxy = os.getenv("X509_USER_PROXY")
+    if not proxy or not os.path.isfile(proxy):
+        print(f"X509_USER_PROXY does not point to a proxy file ({proxy}).")
+        print("Please run the following commands in your shell:")
+        print("export X509_USER_PROXY=$HOME/x509up_u`id -u`")
+        print("voms-proxy-init --voms cms --valid 192:00")
         sys.exit(1)
+    if shutil.which("voms-proxy-info") is not None:
+        valid = subprocess.run(
+            ["voms-proxy-info", "--exists", "--file", proxy], capture_output=True
+        )
+        if valid.returncode != 0:
+            print(f"The proxy in X509_USER_PROXY ({proxy}) is expired or invalid.")
+            print("Please run the following command in your shell:")
+            print("voms-proxy-init --voms cms --valid 192:00")
+            sys.exit(1)
+    print(f"Using the proxy from X509_USER_PROXY: {proxy}")
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = current_dir.replace("/condor", "")
+
+    # Since Nov 2025 the CERN schedds split by filesystem: the standard ones refuse
+    # /eos paths in a submit file and the EosSubmit ones (`module load
+    # lxbatch/eossubmit`) refuse AFS paths. Everything below references base_dir, so
+    # the checkout's filesystem decides which schedd has to receive the job.
+    # https://batchdocs.web.cern.ch/local/eossubmit.html
+    on_eos = base_dir.startswith("/eos/")
+    eossubmit = os.getenv("_myschedd_POOL") == "eossubmit"
+    if on_eos and not eossubmit:
+        print(
+            f"The checkout is on EOS ({base_dir}), which only the EosSubmit schedds "
+            "accept. Please run the following command in your shell and resubmit:"
+        )
+        print("module load lxbatch/eossubmit")
+        sys.exit(1)
+    if eossubmit and not on_eos:
+        print(
+            f"The EosSubmit schedds are selected but the checkout is not on EOS "
+            f"({base_dir}). Please run the following command in your shell and "
+            "resubmit:"
+        )
+        print("module unload lxbatch/eossubmit")
+        sys.exit(1)
+    if on_eos:
+        # /eos/home-<x>/ and /eos/user/<x>/ are the same volume; the EosSubmit docs
+        # only use the latter.
+        base_dir = re.sub(r"^/eos/home-([a-z0-9])/", r"/eos/user/\1/", base_dir)
 
     if args.remoteRepo is not None:
         print("Will use a remote path to access BTVNanoCommissioning:", args.remoteRepo)
@@ -312,47 +350,14 @@ if __name__ == "__main__":
         f.write("\n".join([str(i) for i in range(counter)]))
 
     ## store the jdl file
-    # The standard CERN schedds refuse /eos paths inside a submit file: the
-    # executable, the log files, the queue-from list and the output sandbox are
-    # all read or written by the submit host. When the checkout lives on EOS,
-    # stage those on AFS and pull the input sandbox over xrootd instead.
-    # https://batchdocs.web.cern.ch/local/file_xfer_plugin.html
+    submit_dir = f"{base_dir}/{job_dir}"
     sandbox = [
-        f"{base_dir}/{job_dir}/arguments.json",
-        f"{base_dir}/{job_dir}/split_samples.json",
-        f"{base_dir}/{job_dir}/jobnum_list.txt",
+        f"{submit_dir}/arguments.json",
+        f"{submit_dir}/split_samples.json",
+        f"{submit_dir}/jobnum_list.txt",
     ]
     if not args.remoteRepo:
         sandbox.append(f"{base_dir}/BTVNanoCommissioning.tar.gz")
-
-    submit_dir = f"{base_dir}/{job_dir}"
-    executable = f"{base_dir}/condor/execute.sh"
-
-    if base_dir.startswith("/eos/"):
-        afs_home = os.path.expanduser("~")
-        if not afs_home.startswith("/afs/"):
-            raise RuntimeError(
-                f"The checkout is on EOS ({base_dir}), which the standard schedds "
-                "cannot reference from a submit file, and $HOME is not on AFS to "
-                "stage the submit files on instead. Submit from an EosSubmit "
-                "schedd: https://batchdocs.web.cern.ch/local/eossubmit.html"
-            )
-        submit_dir = os.path.join(afs_home, ".btvcondor", args.jobName)
-        shutil.rmtree(submit_dir, ignore_errors=True)
-        os.makedirs(f"{submit_dir}/log")
-        shutil.copy(executable, f"{submit_dir}/execute.sh")
-        os.chmod(f"{submit_dir}/execute.sh", 0o755)
-        shutil.copy(f"{base_dir}/{job_dir}/jobnum_list.txt", submit_dir)
-        executable = f"{submit_dir}/execute.sh"
-        # /eos/home-<x>/ and /eos/user/<x>/ are the same volume; xrootd wants the latter.
-        sandbox = [
-            "root://eosuser.cern.ch/"
-            + re.sub(r"^/eos/home-([a-z0-9])/", r"/eos/user/\1/", path)
-            for path in sandbox
-        ]
-        print(
-            f"Checkout is on EOS; submit files and condor logs staged in {submit_dir}"
-        )
 
     jdl_template = """Universe   = vanilla
 Executable = {executable}
@@ -362,7 +367,7 @@ initialdir = {submit_dir}
 Arguments = $(JOBNUM) $(request_cpus)
 
 request_cpus = {nCPU}
-use_x509userproxy = true
+x509userproxy = {proxy}
 
 +JobFlavour = "{jobqueue}"
 
@@ -380,7 +385,8 @@ transfer_output_files   = .success
 
 Queue JOBNUM from {jobnum_file}
 """.format(
-        executable=executable,
+        executable=f"{base_dir}/condor/execute.sh",
+        proxy=proxy,
         submit_dir=submit_dir,
         jobqueue=args.jobqueue,
         log_dir=f"{submit_dir}/log",
